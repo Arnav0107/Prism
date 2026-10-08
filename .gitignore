@@ -1,0 +1,20 @@
+# Compiler files
+cache/
+out/
+
+# Broadcast & logs
+broadcast/
+*.log
+.logs/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db

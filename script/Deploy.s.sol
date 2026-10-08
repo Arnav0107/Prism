@@ -8,10 +8,11 @@ import {MockStock} from "../contracts/MockStock.sol";
 import {MockUSDC} from "../contracts/MockUSDC.sol";
 import {MockDividendSource} from "../contracts/MockDividendSource.sol";
 import {PrismVault} from "../contracts/PrismVault.sol";
+import {PrismAuction} from "../contracts/PrismAuction.sol";
 
 /**
  * @title DeployScript
- * @notice Deploys Prism contracts, initializes 4 quarterly epochs, and mints test balances.
+ * @notice Deploys Prism contracts, initializes 4 quarterly epochs, deploys PrismAuction, and mints test balances.
  */
 contract DeployScript is Script {
     function run() external {
@@ -47,7 +48,15 @@ contract DeployScript is Script {
         console.log("PrincipalToken deployed at: ", address(vault.principalToken()));
         console.log("EpochCoupon deployed at:    ", address(vault.epochCoupon()));
 
-        // 3. Create 4 quarterly epochs
+        // 3. Deploy PrismAuction
+        PrismAuction auction = new PrismAuction(
+            address(vault.epochCoupon()),
+            address(usdc),
+            address(vault)
+        );
+        console.log("PrismAuction deployed at:   ", address(auction));
+
+        // 4. Create 4 quarterly epochs
         for (uint256 i = 1; i <= 4; ++i) {
             uint256 exDate = block.timestamp + (i * 90 days);
             uint256 payDate = exDate + 5 days;
@@ -55,7 +64,7 @@ contract DeployScript is Script {
             console.log("Created Epoch", i);
         }
 
-        // 4. Mint test balances for deployer
+        // 5. Mint test balances for deployer
         stock.mint(deployer, 1_000_000e18);
         usdc.mint(deployer, 1_000_000e6);
 

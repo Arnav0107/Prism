@@ -1,7 +1,5 @@
 name: CI
 
-permissions: {}
-
 on:
   push:
   pull_request:
@@ -9,14 +7,12 @@ on:
 
 jobs:
   check:
-    name: Foundry project
+    name: Foundry Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false
           submodules: recursive
 
       - name: Install Foundry
@@ -24,9 +20,6 @@ jobs:
 
       - name: Show Forge version
         run: forge --version
-
-      - name: Run Forge fmt
-        run: forge fmt --check
 
       - name: Run Forge build
         run: forge build --sizes

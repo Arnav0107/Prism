@@ -1,0 +1,187 @@
+.prism-auction__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+
+@media (min-width: 960px) {
+  .prism-auction__grid {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+}
+
+.prism-auction__chart-panel,
+.prism-auction__ticker-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.prism-auction__panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.prism-auction__panel-title {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.prism-auction__live-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.prism-auction__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.prism-auction__live-dot--active {
+  background: var(--color-vermilion);
+}
+
+.prism-auction__svg-container {
+  width: 100%;
+  padding: var(--space-2) 0;
+  flex-grow: 1;
+}
+
+.prism-auction__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.prism-auction__axis-text {
+  font-size: 10px;
+  fill: var(--color-text-muted);
+}
+
+.prism-auction__callout-text {
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--color-vermilion);
+}
+
+.prism-auction__panel-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* Ticker & Quote */
+.prism-auction__quote-display {
+  padding: var(--space-4) 0;
+}
+
+.prism-auction__quote-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.prism-auction__quote-price {
+  font-size: 2.25rem;
+  font-weight: 500;
+  color: var(--color-vermilion);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1.1;
+}
+
+.prism-auction__quote-currency {
+  font-size: 1.5rem;
+  color: var(--color-text-muted);
+}
+
+.prism-auction__quote-unit {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-left: var(--space-2);
+}
+
+.prism-auction__quote-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+}
+
+.prism-auction__pause-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.prism-auction__pause-btn:hover {
+  color: var(--color-vermilion);
+}
+
+.prism-auction__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  font-size: 0.75rem;
+}
+
+.prism-auction__metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px dashed var(--color-border-subtle);
+}
+
+.prism-auction__metric-row dt {
+  color: var(--color-text-muted);
+}
+
+.prism-auction__metric-row dd {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.prism-auction__notice {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.prism-auction__notice-text {
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+}

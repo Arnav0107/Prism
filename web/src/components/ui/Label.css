@@ -1,0 +1,20 @@
+.prism-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.prism-label--muted {
+  color: var(--color-muted);
+}
+
+.prism-label--default {
+  color: var(--color-text);
+}
+
+.prism-label--accent {
+  color: var(--color-accent-text);
+}

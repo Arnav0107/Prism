@@ -1,0 +1,120 @@
+.prism-disclosures__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+@media (min-width: 768px) {
+  .prism-disclosures__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1080px) {
+  .prism-disclosures__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.prism-disclosures__card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.prism-disclosures__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.prism-disclosures__item-type {
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.prism-disclosures__item-name {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.prism-disclosures__item-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  flex-grow: 1;
+  margin-bottom: var(--space-4);
+}
+
+.prism-disclosures__card-foot {
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border-subtle);
+}
+
+.prism-disclosures__link {
+  font-size: 0.6875rem;
+  color: var(--color-text-primary);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+}
+
+.prism-disclosures__link:hover {
+  color: var(--color-vermilion);
+}
+
+.prism-disclosures__audit-banner {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .prism-disclosures__audit-banner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.prism-disclosures__audit-tag {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-vermilion);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.prism-disclosures__audit-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.prism-disclosures__audit-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  max-width: 60ch;
+  margin: 0;
+}
+
+.prism-disclosures__audit-action {
+  flex-shrink: 0;
+}

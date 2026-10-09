@@ -1,0 +1,96 @@
+.prism-participants__table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-bottom: var(--space-4);
+}
+
+.prism-participants__table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  min-width: 680px;
+}
+
+.prism-participants__table th {
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-weight: 500;
+}
+
+.prism-participants__table td {
+  padding: var(--space-4);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: top;
+}
+
+.prism-participants__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.prism-participants__cell-role {
+  color: var(--color-text-primary);
+  width: 22%;
+}
+
+.prism-participants__cell-desc {
+  color: var(--color-text-secondary);
+  width: 32%;
+}
+
+.prism-participants__cell-inst {
+  font-size: 0.75rem;
+  width: 20%;
+}
+
+.prism-participants__inst-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.prism-participants__inst-tag--principal {
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+}
+
+.prism-participants__inst-tag--coupon {
+  border-color: var(--color-vermilion);
+  color: var(--color-vermilion);
+}
+
+.prism-participants__inst-tag--neutral {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.prism-participants__cell-mech {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  width: 26%;
+}
+
+.prism-participants__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+}
+
+.prism-participants__footnote {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}

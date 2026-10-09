@@ -422,4 +422,58 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
             assertEq(coupon.balanceOf(address(auction), 3), 0, "Escrow not empty after cancel");
         }
     }
+
+    function test_buy_revertsAfterFundEpoch_andCancelWorks() public {
+        vm.prank(seller);
+        uint256 auctionId = auction.createAuction(1, 100e18, 1_000_000, 200_000, 1_000);
+
+        // Fund epoch 1
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        address funder = makeAddr("funder");
+        usdc.mint(funder, 10_000e6);
+        vm.prank(funder);
+        usdc.approve(address(vault), type(uint256).max);
+        vm.prank(funder);
+        vault.fundEpoch(1);
+
+        // buy() must revert with EpochAlreadyFunded
+        vm.prank(buyer1);
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.EpochAlreadyFunded.selector, 1));
+        auction.buy(auctionId, 10e18, type(uint256).max);
+
+        // cancel() must still work and refund seller's escrowed coupons
+        uint256 sellerCouponsBefore = coupon.balanceOf(seller, 1);
+        vm.prank(seller);
+        auction.cancel(auctionId);
+        assertEq(coupon.balanceOf(seller, 1) - sellerCouponsBefore, 100e18);
+        assertEq(coupon.balanceOf(address(auction), 1), 0);
+    }
+
+    function test_buy_revertsAfterExDate_andCancelWorks() public {
+        vm.prank(seller);
+        uint256 auctionId = auction.createAuction(1, 100e18, 1_000_000, 200_000, 1_000);
+
+        // Warp past exDate
+        vm.warp(epoch1Ex + 1);
+
+        // buy() must revert with EpochPastExDate
+        vm.prank(buyer1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PrismAuction.EpochPastExDate.selector,
+                1,
+                epoch1Ex,
+                epoch1Ex + 1
+            )
+        );
+        auction.buy(auctionId, 10e18, type(uint256).max);
+
+        // cancel() must still work and refund seller's escrowed coupons
+        uint256 sellerCouponsBefore = coupon.balanceOf(seller, 1);
+        vm.prank(seller);
+        auction.cancel(auctionId);
+        assertEq(coupon.balanceOf(seller, 1) - sellerCouponsBefore, 100e18);
+        assertEq(coupon.balanceOf(address(auction), 1), 0);
+    }
 }
+

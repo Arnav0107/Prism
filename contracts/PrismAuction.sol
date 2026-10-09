@@ -197,6 +197,12 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
             revert InsufficientAuctionLiquidity(amount, auction.amount);
         }
 
+        PrismVault.EpochInfo memory epoch = prismVault.getEpoch(auction.epochId);
+        if (epoch.funded) revert EpochAlreadyFunded(auction.epochId);
+        if (block.timestamp >= epoch.exDate) {
+            revert EpochPastExDate(auction.epochId, epoch.exDate, block.timestamp);
+        }
+
         uint256 price = currentPrice(auctionId);
         if (price > maxPrice) revert SlippageExceeded(price, maxPrice);
 

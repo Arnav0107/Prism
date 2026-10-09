@@ -6,9 +6,14 @@ import "./Header.css";
 export const Header: React.FC = () => {
   return (
     <header className="prism-header" role="banner">
+      {/* Skip to Main Content Link for Keyboard / Screen Readers */}
+      <a href="#main-content" className="prism-skip-link">
+        Skip to main content
+      </a>
+
       <Container className="prism-header__inner">
         {/* Brand / Logo */}
-        <a href="#" className="prism-header__brand" aria-label="Prism home">
+        <a href="#" className="prism-header__brand" aria-label="Prism prospectus home">
           <svg
             className="prism-header__logo-mark"
             width="28"
@@ -29,7 +34,7 @@ export const Header: React.FC = () => {
             {/* Lower split: Coupon (vermilion) */}
             <path
               d="M10 14 C 14 14, 16 22, 26 22"
-              stroke="var(--color-accent)"
+              stroke="var(--color-vermilion)"
               strokeWidth="1.5"
               fill="none"
             />
@@ -48,18 +53,21 @@ export const Header: React.FC = () => {
 
         {/* Navigation & Theme Switcher */}
         <div className="prism-header__controls">
-          <nav className="prism-header__nav" aria-label="Main navigation">
-            <a href="#principle" className="prism-header__link">
-              Principle
+          <nav className="prism-header__nav" aria-label="Prospectus navigation">
+            <a href="#mechanics" className="prism-header__link">
+              01 Mechanics
             </a>
-            <a href="#mechanism" className="prism-header__link">
-              Mechanism
+            <a href="#how-it-works" className="prism-header__link">
+              02 Lifecycle
             </a>
-            <a href="#market" className="prism-header__link">
-              Auction
+            <a href="#auction" className="prism-header__link">
+              03 Auction
             </a>
-            <a href="#reality" className="prism-header__link">
-              What Is Real
+            <a href="#participants" className="prism-header__link">
+              04 Matrix
+            </a>
+            <a href="#disclosures" className="prism-header__link">
+              05 Disclosures
             </a>
           </nav>
 

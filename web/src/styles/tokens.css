@@ -10,13 +10,20 @@
 :root,
 [data-theme="paper"] {
   --color-bg: #F3EFE6;
+  --color-surface: #FCFAF6;
   --color-text: #141412;
-  --color-muted: #55524A;
+  --color-text-primary: #141412;
+  --color-text-secondary: #3D3B35;
+  --color-text-muted: #55524A;
   --color-body: #3D3B35;
+  --color-muted: #55524A;
+  --color-border: rgba(20, 20, 18, 0.16);
+  --color-border-subtle: rgba(20, 20, 18, 0.08);
   --color-rule: rgba(20, 20, 18, 0.16);
   --color-rule-strong: rgba(20, 20, 18, 0.35);
   --color-accent: #D9481C;
   --color-accent-text: #B8421F;
+  --color-vermilion: #D9481C;
   --color-card-bg: rgba(20, 20, 18, 0.02);
   --color-hover-bg: rgba(20, 20, 18, 0.05);
 
@@ -25,13 +32,20 @@
 
 [data-theme="ink"] {
   --color-bg: #0F0F0D;
+  --color-surface: #171714;
   --color-text: #F3EFE6;
-  --color-muted: #A8A396;
+  --color-text-primary: #F3EFE6;
+  --color-text-secondary: #CFCABD;
+  --color-text-muted: #A8A396;
   --color-body: #CFCABD;
+  --color-muted: #A8A396;
+  --color-border: rgba(243, 239, 230, 0.16);
+  --color-border-subtle: rgba(243, 239, 230, 0.08);
   --color-rule: rgba(243, 239, 230, 0.16);
   --color-rule-strong: rgba(243, 239, 230, 0.35);
   --color-accent: #FF7448;
   --color-accent-text: #FF8A63;
+  --color-vermilion: #FF7448;
   --color-card-bg: rgba(243, 239, 230, 0.02);
   --color-hover-bg: rgba(243, 239, 230, 0.05);
 }

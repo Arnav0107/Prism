@@ -1,0 +1,46 @@
+.prism-theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-rule-strong);
+  background-color: var(--color-card-bg);
+  padding: 0 var(--space-1);
+}
+
+.prism-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-1);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.prism-theme-btn:hover {
+  color: var(--color-text);
+}
+
+.prism-theme-btn--active {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.prism-theme-btn__indicator {
+  font-size: 10px;
+  color: var(--color-accent);
+}
+
+.prism-theme-switcher__divider {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-rule-strong);
+  user-select: none;
+}

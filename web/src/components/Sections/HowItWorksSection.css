@@ -1,0 +1,94 @@
+.prism-steps__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+
+@media (min-width: 680px) {
+  .prism-steps__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1040px) {
+  .prism-steps__grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.prism-step-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.prism-step-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.prism-step-card__num {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--color-vermilion);
+}
+
+.prism-step-card__code {
+  font-size: 0.625rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.prism-step-card__title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.prism-step-card__summary {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+  font-weight: 500;
+}
+
+.prism-step-card__details {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+  flex-grow: 1;
+}
+
+.prism-step-card__state {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border-subtle);
+  font-size: 0.6875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prism-step-card__state-label {
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+}
+
+.prism-step-card__state-val {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}

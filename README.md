@@ -27,6 +27,7 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 | [`PrincipalToken.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrincipalToken.sol) | ERC-20 (18 dec) | Capital exposure leg. Mint and burn restricted exclusively to `PrismVault`. |
 | [`EpochCoupon.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/EpochCoupon.sol) | ERC-1155 (Supply) | Per-epoch dividend coupons (`id = epochId`). Mint/burn restricted to `PrismVault`. |
 | [`PrismVault.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismVault.sol) | Vault Core | Coordinates deposits, epoch funding, claims, recombines, and principal redemptions. |
+| [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol) | Marketplace | Dutch auction marketplace for continuous EpochCoupon price discovery and liquidity. |
 
 ---
 
@@ -89,7 +90,25 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 
 ---
 
-## 4. Mock vs. Real Disclaimer
+## 4. Dividend Dutch Auction (`PrismAuction`)
+
+The **Prism Dividend Dutch Auction** provides continuous on-chain price discovery and secondary liquidity for coupon holders wishing to sell upcoming dividend rights before the ex-dividend date.
+
+### Core Auction Mechanics
+- **Escrow**: Sellers deposit `EpochCoupon` into [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol).
+- **Linear Decay**: Prices decay continuously per second from `startPrice` to `floorPrice` over `duration` seconds:
+  $$P(t) = \text{startPrice} - \frac{(\text{startPrice} - \text{floorPrice}) \times \Delta t}{\text{duration}}$$
+  Once $t \ge \text{duration}$, the price clamps deterministically at `floorPrice`.
+- **Immediate Settlement**: Buyers purchase coupons using `MockUSDC`. USDC is transferred directly from the buyer to the seller, and coupons are delivered to the buyer instantly.
+- **Partial Fills**: Buyers can fill any fractional amount of an auction until the remaining balance reaches zero, which automatically closes the auction.
+- **Slippage Protection**: Buyers pass `maxPrice` to ensure execution does not exceed their slippage threshold.
+- **Batch Auctions**: Sellers can call `createBatchAuctions` to bundle multiple quarters into a single transaction (e.g. *"sell my next 4 quarterly dividends"*).
+- **Zero Protocol Fees (MVP)**: This MVP implementation features **zero protocol fees**, providing 100% of proceeds directly to the seller.
+- **Yield Curve Analytics**: `getEpochMarketData(epochId)` reports `(lastClearingPrice, volume, activeAuctionCount)` on-chain, allowing frontends to construct live dividend term-structure curves.
+
+---
+
+## 5. Mock vs. Real Disclaimer
 
 > [!IMPORTANT]
 > **Mock-vs-Real Architecture Transparency**
@@ -102,7 +121,7 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 
 ---
 
-## 5. Security Invariants & Formal Checks
+## 6. Security Invariants & Formal Checks
 
 Prism enforces the following mathematical invariants, formally verified across 256 fuzzing runs:
 
@@ -115,7 +134,7 @@ Prism enforces the following mathematical invariants, formally verified across 2
 
 ---
 
-## 6. Build, Test, & Gas Reports
+## 7. Build, Test, & Gas Reports
 
 ### Prerequisites
 - [Foundry](https://getfoundry.sh/) (`forge`, `cast`)
@@ -149,7 +168,7 @@ forge test --gas-report
 
 ---
 
-## 7. Deployment to Monad Testnet
+## 8. Deployment to Monad Testnet
 
 1. Copy `.env.example` to `.env`:
    ```bash

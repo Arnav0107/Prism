@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Container } from "./Container";
 import { Rule } from "./Rule";
 import { Label } from "./Label";
@@ -25,11 +25,50 @@ export const Section: React.FC<SectionProps> = ({
   className = "",
   ...props
 }) => {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // If IntersectionObserver is not supported or user prefers reduced motion, show immediately
+    if (
+      typeof window === "undefined" ||
+      !("IntersectionObserver" in window) ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          if (sectionRef.current) {
+            observer.unobserve(sectionRef.current);
+          }
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: "0px 0px -40px 0px",
+      }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <section
+      ref={sectionRef}
       id={id}
       aria-labelledby={`${id}-heading`}
-      className={`prism-section ${className}`.trim()}
+      className={`prism-section ${isVisible ? "prism-section--visible" : ""} ${className}`.trim()}
       {...props}
     >
       <Container>

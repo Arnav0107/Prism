@@ -185,3 +185,14 @@
   color: var(--color-text-muted);
   margin-top: var(--space-2);
 }
+
+@media (max-width: 480px) {
+  .prism-auction__chart-panel,
+  .prism-auction__ticker-panel {
+    padding: var(--space-4);
+  }
+
+  .prism-auction__quote-price {
+    font-size: 1.75rem;
+  }
+}

@@ -72,6 +72,12 @@
   margin-top: 2px;
 }
 
+@media (max-width: 480px) {
+  .prism-header__descriptor {
+    display: none;
+  }
+}
+
 .prism-header__status {
   display: none;
 }

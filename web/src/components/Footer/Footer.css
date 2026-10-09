@@ -118,3 +118,10 @@
 .prism-footer__back-top:hover {
   color: var(--color-vermilion);
 }
+
+@media (max-width: 480px) {
+  .prism-footer__nav {
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+}

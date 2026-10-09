@@ -35,6 +35,9 @@ contract PrismVault is Ownable, ReentrancyGuard {
     PrincipalToken public immutable principalToken;
     EpochCoupon public immutable epochCoupon;
 
+    /// @notice Demo mode flag allowing early funding before exDate for live demonstrations.
+    bool public demoMode = true;
+
     uint256 public epochCount;
     mapping(uint256 => EpochInfo) public epochs;
 
@@ -44,6 +47,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     event CouponClaimed(uint256 indexed epochId, address indexed claimer, uint256 amount, uint256 payout);
     event Recombined(address indexed user, uint256 amount);
     event PrincipalRedeemed(address indexed user, uint256 amount);
+    event DemoModeSet(bool enabled);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -57,6 +61,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     error NonDividendActionType(IDividendSource.ActionType actionType);
     error InsufficientBalance();
     error FutureEpochsRemain(uint256 latestExDate, uint256 currentTimestamp);
+    error ExDateNotReached(uint256 epochId, uint256 exDate, uint256 currentTimestamp);
 
     constructor(
         address stock_,
@@ -72,6 +77,16 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
         principalToken = new PrincipalToken(address(this));
         epochCoupon = new EpochCoupon(address(this), "https://prism.finance/api/epoch/{id}.json");
+    }
+
+    /**
+     * @notice Toggle demo mode (Owner only). In production (demoMode=false),
+     *         epochs cannot be funded before their exDate.
+     * @param enabled New demoMode setting.
+     */
+    function setDemoMode(bool enabled) external onlyOwner {
+        demoMode = enabled;
+        emit DemoModeSet(enabled);
     }
 
     /**
@@ -97,7 +112,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Splits collateral stock into PrincipalToken and EpochCoupons for unexpired epochs.
+     * @notice Splits collateral stock into PrincipalToken and EpochCoupons for live epochs.
      * @param amount Amount of underlying stock to deposit.
      */
     function deposit(uint256 amount) external nonReentrant {
@@ -108,7 +123,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
         uint256 total = epochCount;
         for (uint256 i = 1; i <= total; ++i) {
-            if (epochs[i].exDate > block.timestamp) {
+            if (_isLive(i)) {
                 epochCoupon.mint(msg.sender, i, amount);
             }
         }
@@ -125,6 +140,10 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
         EpochInfo storage epoch = epochs[epochId];
         if (epoch.funded) revert EpochAlreadyFunded(epochId);
+
+        if (!demoMode && block.timestamp < epoch.exDate) {
+            revert ExDateNotReached(epochId, epoch.exDate, block.timestamp);
+        }
 
         (bool declared, IDividendSource.ActionType actionType, uint256 amountPerShare) =
             dividendSource.getEvent(epochId);
@@ -175,8 +194,8 @@ contract PrismVault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Recombines PrincipalToken and unexpired EpochCoupons to retrieve collateral stock.
-     * @dev Epochs whose exDate has already passed are not required.
+     * @notice Recombines PrincipalToken and unexpired, unfunded EpochCoupons to retrieve collateral stock.
+     * @dev Epochs already funded or past exDate are not required.
      * @param amount Amount of stock to reconstitute.
      */
     function recombine(uint256 amount) external nonReentrant {
@@ -185,7 +204,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
         uint256 total = epochCount;
         for (uint256 i = 1; i <= total; ++i) {
-            if (epochs[i].exDate > block.timestamp) {
+            if (_isLive(i)) {
                 if (epochCoupon.balanceOf(msg.sender, i) < amount) revert InsufficientBalance();
                 epochCoupon.burn(msg.sender, i, amount);
             }
@@ -198,12 +217,14 @@ contract PrismVault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Redeems stock collateral using PrincipalToken when no future epochs remain.
+     * @notice Redeems stock collateral using PrincipalToken when no live future epochs remain.
      * @param amount Amount of principal to redeem.
      */
     function redeemPrincipal(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        if (hasFutureEpochs()) revert FutureEpochsRemain(epochs[epochCount].exDate, block.timestamp);
+
+        (bool hasLive, uint256 latestLiveExDate) = _getLiveStatus();
+        if (hasLive) revert FutureEpochsRemain(latestLiveExDate, block.timestamp);
         if (principalToken.balanceOf(msg.sender) < amount) revert InsufficientBalance();
 
         principalToken.burn(msg.sender, amount);
@@ -213,11 +234,11 @@ contract PrismVault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Checks whether any unexpired epochs exist in the vault.
+     * @notice Checks whether any live (unfunded and unexpired) epochs exist in the vault.
      */
     function hasFutureEpochs() public view returns (bool) {
-        if (epochCount == 0) return false;
-        return epochs[epochCount].exDate > block.timestamp;
+        (bool hasLive,) = _getLiveStatus();
+        return hasLive;
     }
 
     /**
@@ -226,5 +247,28 @@ contract PrismVault is Ownable, ReentrancyGuard {
      */
     function getEpoch(uint256 epochId) external view returns (EpochInfo memory) {
         return epochs[epochId];
+    }
+
+    /**
+     * @notice Internal helper checking if an epoch is live (unfunded and before exDate).
+     * @param epochId Target epoch identifier.
+     */
+    function _isLive(uint256 epochId) internal view returns (bool) {
+        return !epochs[epochId].funded && epochs[epochId].exDate > block.timestamp;
+    }
+
+    /**
+     * @notice Internal helper returning whether any live epochs exist and the latest live exDate.
+     */
+    function _getLiveStatus() internal view returns (bool hasLive, uint256 latestExDate) {
+        uint256 total = epochCount;
+        for (uint256 i = 1; i <= total; ++i) {
+            if (_isLive(i)) {
+                hasLive = true;
+                if (epochs[i].exDate > latestExDate) {
+                    latestExDate = epochs[i].exDate;
+                }
+            }
+        }
     }
 }

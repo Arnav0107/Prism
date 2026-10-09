@@ -63,12 +63,13 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 ### 2. Deposit (`deposit`)
 - A user locks `amount` of `MockStock` into `PrismVault`.
 - The vault mints `amount` of `PrincipalToken` to the user.
-- The vault mints `amount` of `EpochCoupon` for **every** epoch whose `exDate` is still in the future.
+- The vault mints `amount` of `EpochCoupon` **only for live epochs** (`!epoch.funded && epoch.exDate > block.timestamp`). Already funded or expired epochs are skipped to protect dividend solvency.
 
-### 3. Corporate Action Safeguard & Funding (`fundEpoch`)
+### 3. Corporate Action Safeguard, Demo Mode & Funding (`fundEpoch`)
 - The dividend source declares an event for an epoch (`DIVIDEND`, `SPLIT`, or `OTHER`).
 - When `fundEpoch(epochId)` is called:
   - If the action type is **not** `DIVIDEND` (e.g. a `SPLIT` or `OTHER`), the transaction **reverts** (`NonDividendActionType`).
+  - **Demo Mode Safeguard**: The vault includes a `demoMode` flag (default `true` on testnet to allow immediate dividend demonstrations). **In production, `demoMode` MUST be toggled to `false` via `setDemoMode(false)`**, strictly preventing `fundEpoch` before the ex-dividend date (`ExDateNotReached`).
   - Calculates required payout: `(couponSupply(epochId) * amountPerShare) / 1e18`.
   - Pulls `MockUSDC` from caller into the vault.
   - Marks epoch state as `CLAIMABLE`.
@@ -81,11 +82,11 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 ### 5. Recombination (`recombine`)
 - At any time, a user can reconstitute their underlying `MockStock` collateral by calling `recombine(amount)`.
 - Burns `amount` of `PrincipalToken`.
-- Burns `amount` of `EpochCoupon` for all epochs that have **not yet passed their exDate**.
-- Epochs whose `exDate` has already passed are **not required**.
+- Burns `amount` of `EpochCoupon` for all **live epochs** (`!epoch.funded && epoch.exDate > block.timestamp`).
+- Epochs already funded or past `exDate` are **not required**.
 
 ### 6. Principal Redemption (`redeemPrincipal`)
-- When **all** distribution epochs have expired (`hasFutureEpochs() == false`), the principal can be redeemed directly.
+- When no live distribution epochs remain (`hasFutureEpochs() == false`, i.e. all epochs are either funded or past `exDate`), the principal can be redeemed directly.
 - Burns `amount` of `PrincipalToken` and returns `amount` of `MockStock` with zero coupon requirement.
 
 ---

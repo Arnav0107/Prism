@@ -61,10 +61,10 @@ export const Hero: React.FC = () => {
                 xmlns="http://www.w3.org/2000/svg"
               >
                 {/* Reference Grid lines */}
-                <line x1="20" y1="30" x2="440" y2="30" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
+                <line x1="20" y1="20" x2="440" y2="20" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
                 <line x1="20" y1="110" x2="440" y2="110" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
-                <line x1="20" y1="190" x2="440" y2="190" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
-                <line x1="180" y1="15" x2="180" y2="205" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
+                <line x1="20" y1="206" x2="440" y2="206" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
+                <line x1="180" y1="15" x2="180" y2="210" stroke="var(--color-border-subtle)" strokeDasharray="3 3" />
 
                 {/* Incoming Equity Share */}
                 <path
@@ -93,17 +93,17 @@ export const Hero: React.FC = () => {
                 <text x="30" y="98" className="prism-hero__svg-label font-mono">1.0 MOCK SHARE</text>
                 <text x="180" y="132" textAnchor="middle" className="prism-hero__svg-sublabel font-mono">PRISM VAULT</text>
                 
-                <text x="420" y="40" textAnchor="end" className="prism-hero__svg-label prism-hero__svg-label--principal font-mono">
+                <text x="420" y="32" textAnchor="end" className="prism-hero__svg-label prism-hero__svg-label--principal font-mono">
                   1.0 PRINCIPAL (PT-STOCK)
                 </text>
-                <text x="420" y="66" textAnchor="end" className="prism-hero__svg-sublabel font-mono">
+                <text x="420" y="44" textAnchor="end" className="prism-hero__svg-sublabel font-mono">
                   ERC-20 · UNDERLYING EQUITY
                 </text>
 
-                <text x="420" y="160" textAnchor="end" className="prism-hero__svg-label prism-hero__svg-label--coupon font-mono">
+                <text x="420" y="186" textAnchor="end" className="prism-hero__svg-label prism-hero__svg-label--coupon font-mono">
                   1.0 EPOCH COUPON (EC-2026-Q4)
                 </text>
-                <text x="420" y="186" textAnchor="end" className="prism-hero__svg-sublabel font-mono">
+                <text x="420" y="198" textAnchor="end" className="prism-hero__svg-sublabel font-mono">
                   ERC-1155 · PRO-RATA CASH FLOW
                 </text>
               </svg>

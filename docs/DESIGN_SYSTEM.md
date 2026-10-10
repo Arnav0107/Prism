@@ -101,7 +101,7 @@ Screenshots captured across key viewports and themes:
 
 ---
 
-## 6. Accessibility & Performance Verification
+## 6. Accessibility & Performance Testing
 
 - **Target Sizes:** Minimum 44px touch targets on all interactive controls (Buttons, Theme Switcher, Skip Link).
 - **Reduced Motion:** Complete respect for `prefers-reduced-motion: reduce` in SVG draw animations and scroll transitions.

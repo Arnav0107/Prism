@@ -222,7 +222,7 @@ export const AuctionSection: React.FC = () => {
           </dl>
 
           <div className="prism-auction__notice">
-            <Label variant="muted">ON-CHAIN VERIFICATION</Label>
+            <Label variant="muted">ON-CHAIN SETTLEMENT RULES</Label>
             <p className="prism-auction__notice-text font-mono">
               Prices decay strictly linearly per second according to block.timestamp. Buyers fill partially or in full at the current block price. Escrowed coupons are refunded if the auction reaches duration without full execution.
             </p>

@@ -60,7 +60,7 @@ export const DisclosuresSection: React.FC = () => {
     <Section
       id="disclosures"
       number="05"
-      category="AUDIT & VERIFICATION"
+      category="SPECIFICATIONS & TESTING"
       heading="What Is Real"
       lead="Transparent architectural inventory distinguishing production-ready smart contracts from testnet fixtures."
     >
@@ -97,8 +97,8 @@ export const DisclosuresSection: React.FC = () => {
 
       <div className="prism-disclosures__audit-banner">
         <div className="prism-disclosures__audit-copy">
-          <span className="font-mono prism-disclosures__audit-tag">FORMAL VERIFICATION & TESTS</span>
-          <h4 className="prism-disclosures__audit-title">30 Automated Foundry Test Suites Passing</h4>
+          <span className="font-mono prism-disclosures__audit-tag">INVARIANT FUZZING & AUTOMATED TESTS</span>
+          <h4 className="prism-disclosures__audit-title">32 Automated Foundry Test Suites Passing</h4>
           <p className="prism-disclosures__audit-text">
             Includes solvency invariant fuzz tests, multi-depositor race conditions, epoch lifecycle transitions, and Dutch auction price clearing tests.
           </p>

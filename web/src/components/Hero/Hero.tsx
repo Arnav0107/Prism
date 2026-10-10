@@ -52,7 +52,7 @@ export const Hero: React.FC = () => {
             <div className="prism-hero__diagram-frame">
               <div className="prism-hero__diagram-header font-mono">
                 <span>FIG. 1 — STRIPPED EQUITY SPECIFICATION</span>
-                <span className="prism-hero__diagram-badge">SOLVENCY VERIFIED</span>
+                <span className="prism-hero__diagram-badge">INVARIANTS TESTED</span>
               </div>
               <svg
                 className="prism-hero__svg"

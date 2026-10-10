@@ -188,3 +188,27 @@ The script will:
 2. Deploy `PrismVault` (which automatically deploys `PrincipalToken` and `EpochCoupon`).
 3. Initialize 4 quarterly epochs (Q1 to Q4).
 4. Mint test balances of 1,000,000 `mSTOCK` and 1,000,000 `mUSDC` to the deployer.
+
+---
+
+## 9. Web Application & Design System
+
+The official prospectus landing page is located in [`web/`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/web).
+
+### Design Philosophy
+- **Editorial Prospectus**: Rejects crypto-startup cliches (no blue, no purple neon, no gradients, no glassmorphism).
+- **Core Motif**: The split-line hairline mark dividing incoming shares into Principal (top/ink) and Coupon (bottom/vermilion).
+- **Typography**: Self-hosted `Newsreader` (display serif), `Hanken Grotesk` (body sans), and `IBM Plex Mono` (tabular numbers).
+- **Performance**: Sub-60KB gzip total bundle weight, zero layout shift, responsive down to 360px.
+- **Accessibility**: WCAG AAA/AA color contrast, keyboard skip link (`#main-content`), 44px minimum touch targets, and full `prefers-reduced-motion` compliance.
+
+Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/docs/DESIGN_SYSTEM.md).
+
+### Running the Web App Locally
+```bash
+cd web
+npm install
+npm run dev     # Starts local Vite development server
+npm run build   # Typechecks and builds production distribution
+npm test        # Runs Vitest unit & integration test suites
+```

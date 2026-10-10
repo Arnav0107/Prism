@@ -1,0 +1,33 @@
+.prism-rule {
+  border: none;
+  height: 1px;
+  background-color: var(--color-rule);
+  width: 100%;
+}
+
+.prism-rule--strong {
+  background-color: var(--color-rule-strong);
+}
+
+.prism-rule--accent {
+  background-color: var(--color-accent);
+}
+
+.prism-rule--space-none {
+  margin: 0;
+}
+
+.prism-rule--space-sm {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.prism-rule--space-md {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.prism-rule--space-lg {
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-8);
+}

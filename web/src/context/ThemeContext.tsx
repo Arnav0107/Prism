@@ -14,12 +14,19 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 function getInitialTheme(): Theme {
   try {
+    if (typeof window !== "undefined" && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const urlTheme = params.get("theme");
+      if (urlTheme === "paper" || urlTheme === "ink") {
+        return urlTheme;
+      }
+    }
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
     if (saved === "paper" || saved === "ink") {
       return saved;
     }
   } catch {
-    // localStorage might be unavailable or restricted
+    // localStorage or searchParams might be unavailable
   }
 
   if (

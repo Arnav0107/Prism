@@ -1,0 +1,102 @@
+.prism-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.prism-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.prism-drawer {
+  position: relative;
+  width: 440px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.prism-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.prism-drawer__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  margin: var(--space-1) 0 0 0;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.prism-drawer__close-btn {
+  background: transparent;
+  border: none;
+  font-size: var(--text-xl);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.prism-drawer__close-btn:hover {
+  color: var(--color-text);
+}
+
+.prism-drawer__body {
+  padding: var(--space-6);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prism-drawer__section {
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.prism-drawer__section:last-child {
+  border-bottom: none;
+}
+
+.prism-drawer__sec-title {
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin: 0 0 var(--space-1) 0;
+}
+
+.prism-drawer__sec-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 var(--space-4) 0;
+}
+
+.prism-drawer__form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.prism-drawer__time-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

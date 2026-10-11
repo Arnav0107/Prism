@@ -12,6 +12,7 @@ import {
   getContract,
   defineChain,
   type Chain,
+  parseAbiItem,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import deploymentsLocal from './deployments.local.json';
@@ -294,11 +295,18 @@ export async function fetchMarketAuctions(publicClient: PublicClient): Promise<A
     client: publicClient,
   });
 
-  const nextIdBig = (await auction.read.nextAuctionId()) as bigint;
-  const total = Number(nextIdBig);
+  const logs = await publicClient.getLogs({
+    address: DEPLOYED_ADDRESSES.PrismAuction,
+    event: parseAbiItem(
+      'event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration, uint256 startTime)'
+    ),
+    fromBlock: 0n,
+  });
+
+  const ids = Array.from(new Set(logs.map((l) => Number(l.args.auctionId))));
   const list: AuctionView[] = [];
 
-  for (let id = 1; id < total; id++) {
+  for (const id of ids) {
     try {
       const data = (await auction.read.getAuction([BigInt(id)])) as [
         Address,
@@ -509,8 +517,8 @@ export async function declareDividend(
     walletClient,
     DEPLOYED_ADDRESSES.MockDividendSource,
     MockDividendSourceAbi,
-    'declareDividend',
-    [BigInt(epochId), amountPerShareUSDC]
+    'declareEvent',
+    [BigInt(epochId), 0, amountPerShareUSDC]
   );
 }
 

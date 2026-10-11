@@ -1,12 +1,12 @@
 {
   "chainId": 31337,
   "contracts": {
-    "MockStock": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
-    "MockUSDC": "0x322813fd9a801c5507c9de605d63cea4f2ce6c44",
-    "MockDividendSource": "0xa85233c63b9ee964add6f2cffe00fd84eb32338f",
-    "PrismVault": "0x4a679253410272dd5232b3ff7cf5dbb88f295319",
-    "PrincipalToken": "0xf3ee3c4ec25e8414838567818a30c90c7d62f834",
-    "EpochCoupon": "0x532b02bd614fd18aee45603d02866cfb77575cb3",
-    "PrismAuction": "0x7a2088a1bfc9d81c55368ae168c2c02570cb814f"
+    "MockStock": "0x4c5859f0f772848b2d91f1d83e2fe57935348029",
+    "MockUSDC": "0x1291be112d480055dafd8a610b7d1e203891c274",
+    "MockDividendSource": "0x5f3f1dbd7b74c6b46e8c44f98792a1daf8d69154",
+    "PrismVault": "0xb7278a61aa25c888815afc32ad3cc52ff24fe575",
+    "PrincipalToken": "0x9fa5072032b7a7dcc49533401cec1c47bfcf350d",
+    "EpochCoupon": "0x37b37064d97eadacc4d7a0cbc673b5c2932b673c",
+    "PrismAuction": "0xcd8a1c3ba11cf5ecfa6267617243239504a98d90"
   }
 }

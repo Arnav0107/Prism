@@ -1,0 +1,139 @@
+.prism-app-header {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transition: var(--theme-transition);
+}
+
+.prism-app-header__inner {
+  max-width: var(--max-width-wide);
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.prism-app-header__brand-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.prism-app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.prism-app-header__wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.prism-app-header__badge {
+  font-size: var(--text-2xs);
+  padding: 1px 5px;
+  background: var(--color-vermilion);
+  color: #fff;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.prism-app-header__back-link {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border);
+}
+
+.prism-app-header__back-link:hover {
+  color: var(--color-vermilion);
+}
+
+.prism-app-header__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.prism-app-header__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.prism-app-header__tab-num {
+  font-size: var(--text-2xs);
+  opacity: 0.6;
+}
+
+.prism-app-header__tab:hover {
+  color: var(--color-text);
+}
+
+.prism-app-header__tab--active {
+  color: var(--color-vermilion);
+  border-bottom-color: var(--color-vermilion);
+  font-weight: 500;
+}
+
+.prism-app-header__tab--active .prism-app-header__tab-num {
+  opacity: 1;
+}
+
+.prism-app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.prism-app-header__demo-btn {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--text-2xs);
+  padding: 6px 10px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.prism-app-header__demo-btn:hover {
+  border-color: var(--color-vermilion);
+  color: var(--color-vermilion);
+}
+
+@media (max-width: 900px) {
+  .prism-app-header__inner {
+    height: auto;
+    padding: var(--space-2) var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .prism-app-header__nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+}

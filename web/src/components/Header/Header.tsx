@@ -64,6 +64,9 @@ export const Header: React.FC = () => {
             <a href="#disclosures" className="prism-header__link">
               05 Disclosures
             </a>
+            <a href="#/app" className="prism-header__link prism-header__link--launch font-mono">
+              Launch App &rarr;
+            </a>
           </nav>
 
           <ThemeSwitcher />

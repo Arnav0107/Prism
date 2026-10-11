@@ -244,7 +244,7 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
 
   return {
     epochCount: count,
-    demoMode,
+    demoMode: Boolean(demoMode),
     epochs,
   };
 }

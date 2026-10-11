@@ -1,0 +1,125 @@
+.prism-wallet-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+}
+
+.prism-wallet-bar__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.prism-wallet-bar__chain-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px 8px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.prism-wallet-bar__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-vermilion);
+  display: inline-block;
+}
+
+.prism-wallet-bar__switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prism-wallet-bar__label {
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.prism-wallet-bar__select {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  outline: none;
+}
+
+.prism-wallet-bar__select:focus-visible {
+  border-color: var(--color-vermilion);
+}
+
+.prism-wallet-bar__connect-btn {
+  background: transparent;
+  color: var(--color-vermilion);
+  border: 1px solid var(--color-vermilion);
+  padding: 4px 10px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.prism-wallet-bar__connect-btn:hover {
+  background: var(--color-vermilion);
+  color: var(--color-surface);
+}
+
+.prism-wallet-bar__right {
+  display: flex;
+  align-items: center;
+}
+
+.prism-wallet-bar__balances {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 4px 10px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.prism-wallet-bar__bal-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prism-wallet-bar__bal-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.prism-wallet-bar__bal-value {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.prism-wallet-bar__bal-divider {
+  color: var(--color-border);
+}
+
+@media (max-width: 768px) {
+  .prism-wallet-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .prism-wallet-bar__right {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}

@@ -1,0 +1,91 @@
+.prism-toast-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 380px;
+  width: calc(100% - var(--space-8));
+  pointer-events: none;
+}
+
+.prism-toast {
+  pointer-events: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.prism-toast--pending {
+  border-left: 3px solid var(--color-text-muted);
+}
+
+.prism-toast--success {
+  border-left: 3px solid var(--color-vermilion);
+}
+
+.prism-toast--error {
+  border-left: 3px solid #E53935;
+}
+
+.prism-toast__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.prism-toast__status-icon {
+  font-weight: 700;
+  color: var(--color-vermilion);
+}
+
+.prism-toast--error .prism-toast__status-icon {
+  color: #E53935;
+}
+
+.prism-toast__title {
+  flex: 1;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+}
+
+.prism-toast__close-btn {
+  background: transparent;
+  border: none;
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.prism-toast__close-btn:hover {
+  color: var(--color-text);
+}
+
+.prism-toast__message {
+  margin: var(--space-1) 0 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-2xs);
+}
+
+.prism-toast__hash {
+  margin-top: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  background: var(--color-card-bg);
+  padding: 2px 6px;
+}
+
+.prism-toast__hash-val {
+  color: var(--color-vermilion);
+}

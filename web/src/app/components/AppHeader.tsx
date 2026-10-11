@@ -45,6 +45,7 @@ export const AppHeader: React.FC = () => {
           {tabs.map((t) => (
             <button
               key={t.id}
+              data-tab={t.id}
               type="button"
               className={`prism-app-header__tab font-mono ${activeTab === t.id ? 'prism-app-header__tab--active' : ''}`}
               onClick={() => setActiveTab(t.id)}

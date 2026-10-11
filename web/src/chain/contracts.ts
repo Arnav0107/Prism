@@ -308,38 +308,37 @@ export async function fetchMarketAuctions(publicClient: PublicClient): Promise<A
 
   for (const id of ids) {
     try {
-      const data = (await auction.read.getAuction([BigInt(id)])) as [
-        Address,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        boolean
-      ];
+      const data = (await auction.read.getAuction([BigInt(id)])) as any;
+      const seller: Address = data.seller ?? data[0] ?? '0x0000000000000000000000000000000000000000';
+      const epochId = Number(data.epochId ?? data[1] ?? 1);
+      const remainingAmount: bigint = data.amount ?? data[2] ?? 0n;
+      const totalAmount: bigint = data.initialAmount ?? data[3] ?? 0n;
+      const startPrice: bigint = data.startPrice ?? data[4] ?? 0n;
+      const floorPrice: bigint = data.floorPrice ?? data[5] ?? 0n;
+      const startTime: bigint = data.startTime ?? data[6] ?? 0n;
+      const duration: bigint = data.duration ?? data[7] ?? 0n;
+      const active: boolean = Boolean(data.active ?? data[8]);
 
       let curPrice = 0n;
-      if (data[8]) {
+      if (active) {
         try {
           curPrice = (await auction.read.currentPrice([BigInt(id)])) as bigint;
         } catch {
-          curPrice = data[5]; // fallback floor
+          curPrice = floorPrice;
         }
       }
 
       list.push({
         auctionId: id,
-        seller: data[0],
-        epochId: Number(data[1]),
-        totalAmount: data[2],
-        remainingAmount: data[3],
-        startPrice: data[4],
-        floorPrice: data[5],
-        startTime: data[6],
-        duration: data[7],
-        active: data[8],
+        seller,
+        epochId,
+        totalAmount,
+        remainingAmount,
+        startPrice,
+        floorPrice,
+        startTime,
+        duration,
+        active,
         currentPrice: curPrice,
       });
     } catch {

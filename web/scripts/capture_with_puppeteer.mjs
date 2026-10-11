@@ -46,28 +46,66 @@ if (!fs.existsSync(chromePath)) {
 
 const targets = [
   {
-    name: "landing-1440px-paper.png",
-    theme: "paper",
-    width: 1440,
-    height: 900,
-  },
-  {
     name: "landing-1440px-ink.png",
     theme: "ink",
+    hash: "#/",
     width: 1440,
     height: 900,
   },
   {
-    name: "landing-390px-paper.png",
+    name: "landing-1440px-paper.png",
     theme: "paper",
-    width: 390,
-    height: 844,
+    hash: "#/",
+    width: 1440,
+    height: 900,
   },
   {
     name: "landing-390px-ink.png",
     theme: "ink",
+    hash: "#/",
     width: 390,
     height: 844,
+  },
+  {
+    name: "app-split-1440px-ink.png",
+    theme: "ink",
+    hash: "#/app",
+    tab: "split",
+    width: 1440,
+    height: 900,
+  },
+  {
+    name: "app-market-1440px-ink.png",
+    theme: "ink",
+    hash: "#/app",
+    tab: "market",
+    width: 1440,
+    height: 900,
+  },
+  {
+    name: "app-curve-1440px-ink.png",
+    theme: "ink",
+    hash: "#/app",
+    tab: "curve",
+    width: 1440,
+    height: 900,
+  },
+  {
+    name: "app-portfolio-390px-ink.png",
+    theme: "ink",
+    hash: "#/app",
+    tab: "portfolio",
+    width: 390,
+    height: 844,
+  },
+  {
+    name: "app-drawer-1440px-ink.png",
+    theme: "ink",
+    hash: "#/app",
+    tab: "split",
+    width: 1440,
+    height: 900,
+    action: "openDrawer",
   },
 ];
 
@@ -87,21 +125,49 @@ server.listen(PORT, "127.0.0.1", async () => {
     });
 
     const page = await browser.newPage();
+    page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', (err) => console.error('PAGE ERROR:', err));
 
     for (const target of targets) {
-      console.log(`Rendering ${target.name} (${target.width}x${target.height}, ${target.theme})...`);
+      console.log(`Rendering ${target.name} (${target.width}x${target.height}, ${target.theme}, hash: ${target.hash})...`);
       await page.setViewport({
         width: target.width,
         height: target.height,
         deviceScaleFactor: 1,
       });
 
-      await page.goto(`http://127.0.0.1:${PORT}/index.html?theme=${target.theme}`, {
+      const url = `http://127.0.0.1:${PORT}/index.html?theme=${target.theme}${target.hash || ''}`;
+      await page.goto(url, {
         waitUntil: "networkidle0",
+        timeout: 15000,
       });
 
-      // Wait a moment for fonts and CSS to settle
-      await new Promise((r) => setTimeout(r, 600));
+      // Allow fonts, CSS, and Anvil RPC data to settle
+      await new Promise((r) => setTimeout(r, 1200));
+
+      if (target.tab) {
+        try {
+          const tabBtn = await page.$(`button[data-tab="${target.tab}"]`);
+          if (tabBtn) {
+            await tabBtn.click();
+            await new Promise((r) => setTimeout(r, 600));
+          }
+        } catch (e) {
+          console.warn(`Could not click tab ${target.tab}:`, e);
+        }
+      }
+
+      if (target.action === "openDrawer") {
+        try {
+          const btn = await page.$(".prism-app-header__demo-btn");
+          if (btn) {
+            await btn.click();
+            await new Promise((r) => setTimeout(r, 600));
+          }
+        } catch (e) {
+          console.warn("Could not click demo drawer button:", e);
+        }
+      }
 
       const outPath = path.join(DOCS_DIR, target.name);
       await page.screenshot({ path: outPath });

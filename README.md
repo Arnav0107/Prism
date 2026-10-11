@@ -206,11 +206,82 @@ The official prospectus landing page is located in [`web/`](file:///d:/Study/Hac
 
 Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/docs/DESIGN_SYSTEM.md).
 
-### Running the Web App Locally
+### Run Locally
+
+Run the complete Prism stack locally on an Anvil chain with 3 commands:
+
 ```bash
-cd web
-npm install
-npm run dev     # Starts local Vite development server
-npm run build   # Typechecks and builds production distribution
-npm test        # Runs Vitest unit & integration test suites
+# 1. Install dependencies
+npm --prefix web install
+
+# 2. Deploy contracts and seed epochs to local Anvil (spawns Anvil if not running)
+bash script/DeployLocal.sh    # On Windows: powershell -File script/DeployLocal.ps1
+
+# 3. Start local web application
+npm --prefix web run dev
 ```
+
+Visit `http://localhost:5173/` for the prospectus and `http://localhost:5173/#/app` for the live trading application.
+
+To run the automated end-to-end integration lifecycle against local Anvil:
+```bash
+node web/scripts/e2e-local.mjs
+```
+
+### Local Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│             Prism Web Application (Vite)               │
+│                                                        │
+│  Route /#/     : Prospectus Landing Page               │
+│  Route /#/app  : Working Terminal (Chain ID 31337)     │
+│  - Split & Redeem (Deposit stock, Mint PT & EC)       │
+│  - Dutch Market (1s live decay price ticker, buys)    │
+│  - Dividend Curve (Term structure, implied yield)     │
+│  - Portfolio & Claim (Pro-rata dividend settlement)   │
+│  - Simulation Drawer (Faucet mint, declare dividend)  │
+└───────────────────────────┬────────────────────────────┘
+                            │ Viem RPC & Event Indexing
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│             Local Anvil Node (Chain 31337)             │
+│                                                        │
+│  Contracts:                                            │
+│  - PrismVault (Collateral lock, PT & EC minting)       │
+│  - PrismAuction (Dutch auctions, mulDiv ceil math)     │
+│  - PrincipalToken (ERC-20 capital leg)                 │
+│  - EpochCoupon (ERC-1155 dividend claim vouchers)      │
+│  - MockStock & MockUSDC (Test tokens)                  │
+│  - MockDividendSource (Oracle corporate action fixture)│
+└────────────────────────────────────────────────────────┘
+```
+
+- **Local Chain (Anvil 31337)**: Runs an instant, zero-cost Ethereum-compatible EVM node at `http://127.0.0.1:8545`.
+- **Event-Driven Indexing**: Instead of modifying immutable contracts to add gas-heavy getters, the frontend uses Viem's `publicClient.getLogs` over `AuctionCreated` and `EpochFunded` events to reconstruct market order books dynamically.
+- **In-Memory Actor Switcher**: Switch between Anvil's standard deterministic accounts (Deployer/Treasury, Alice, Bob) instantly to test bilateral trading, liquidity seeding, and dividend distributions with zero browser wallet setup required. Injected browser wallets (Rabby, MetaMask) remain fully supported.
+- **Strict Financial Settlement**: The Dutch auction uses `Math.mulDiv` rounding up (`Math.Rounding.Ceil`) so buyers never underpay for fractional coupons, verified by invariant and fuzz tests.
+
+---
+
+## 10. Application Screenshots
+
+### Prospectus Landing Page (Route `#/`)
+| Dark Mode (`ink`) | Light Mode (`paper`) |
+|---|---|
+| ![Landing Ink](docs/screenshots/landing-1440px-ink.png) | ![Landing Paper](docs/screenshots/landing-1440px-paper.png) |
+
+### Working Application (Route `#/app`)
+| 01. Split & Redeem (`ink`) | 02. Dutch Auction Market (`ink`) |
+|---|---|
+| ![Split & Redeem](docs/screenshots/app-split-1440px-ink.png) | ![Dutch Market](docs/screenshots/app-market-1440px-ink.png) |
+
+| 03. Dividend Yield Curve (`ink`) | Simulation Drawer Controls |
+|---|---|
+| ![Dividend Curve](docs/screenshots/app-curve-1440px-ink.png) | ![Anvil Controls Drawer](docs/screenshots/app-drawer-1440px-ink.png) |
+
+### Responsive Mobile (390px Viewport)
+| Mobile Prospectus | Mobile Portfolio & Claim |
+|---|---|
+| ![Mobile Landing](docs/screenshots/landing-390px-ink.png) | ![Mobile Portfolio](docs/screenshots/app-portfolio-390px-ink.png) |
+

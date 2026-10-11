@@ -283,7 +283,11 @@ export const MarketScreen: React.FC = () => {
                 const isSelected = activeAuction?.auctionId === a.auctionId;
                 const pctRemaining =
                   a.totalAmount > 0n ? Number((a.remainingAmount * 100n) / a.totalAmount) : 0;
-                const isSeller = a.seller.toLowerCase() === accountAddress.toLowerCase();
+                const isSeller = Boolean(
+                  a.seller &&
+                  accountAddress &&
+                  a.seller.toLowerCase() === accountAddress.toLowerCase()
+                );
 
                 return (
                   <article

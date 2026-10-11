@@ -70,7 +70,16 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const chainId = LOCAL_CHAIN_ID;
-  const [activeTab, setActiveTab] = useState<AppTab>('split');
+  const getInitialTab = (): AppTab => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('market')) return 'market';
+      if (hash.includes('curve')) return 'curve';
+      if (hash.includes('portfolio')) return 'portfolio';
+    }
+    return 'split';
+  };
+  const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [useInjected, setUseInjected] = useState<boolean>(false);
   const [injectedAddress, setInjectedAddress] = useState<Address | null>(null);

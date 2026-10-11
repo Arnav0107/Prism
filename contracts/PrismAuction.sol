@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {PrismVault} from "./PrismVault.sol";
 
@@ -206,7 +207,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         uint256 price = currentPrice(auctionId);
         if (price > maxPrice) revert SlippageExceeded(price, maxPrice);
 
-        uint256 totalCost = (amount * price) / COUPON_PRECISION;
+        uint256 totalCost = Math.mulDiv(amount, price, COUPON_PRECISION, Math.Rounding.Ceil);
 
         auction.amount -= amount;
         lastClearingPrice[auction.epochId] = price;

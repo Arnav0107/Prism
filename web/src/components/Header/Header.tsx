@@ -1,5 +1,5 @@
 import React from "react";
-import { Container, Badge } from "@/components/ui";
+import { Container } from "@/components/ui";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher/ThemeSwitcher";
 import "./Header.css";
 
@@ -45,11 +45,6 @@ export const Header: React.FC = () => {
             <span className="prism-header__descriptor">Monad Metropolis Track 1</span>
           </div>
         </a>
-
-        {/* Status indicator */}
-        <div className="prism-header__status">
-          <Badge variant="accent">TESTNET · MOCK STOCK</Badge>
-        </div>
 
         {/* Navigation & Theme Switcher */}
         <div className="prism-header__controls">

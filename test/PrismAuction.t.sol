@@ -13,6 +13,7 @@ import {PrincipalToken} from "../contracts/PrincipalToken.sol";
 import {EpochCoupon} from "../contracts/EpochCoupon.sol";
 import {PrismVault} from "../contracts/PrismVault.sol";
 import {PrismAuction} from "../contracts/PrismAuction.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract PrismAuctionTest is Test, IERC1155Receiver {
     MockStock internal stock;
@@ -391,7 +392,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         uint256 fillAmount,
         uint256 price
     ) internal {
-        uint256 expectedCost = (fillAmount * price) / 1e18;
+        uint256 expectedCost = Math.mulDiv(fillAmount, price, 1e18, Math.Rounding.Ceil);
         usdc.mint(buyer1, expectedCost);
 
         uint256 sellerBefore = usdc.balanceOf(seller);
@@ -474,6 +475,88 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         auction.cancel(auctionId);
         assertEq(coupon.balanceOf(seller, 1) - sellerCouponsBefore, 100e18);
         assertEq(coupon.balanceOf(address(auction), 1), 0);
+    }
+
+    function test_repro_dustBuy_roundingDownAllowsFreeTokens() public {
+        vm.prank(seller);
+        uint256 auctionId = auction.createAuction(1, 100e18, 2_000_000, 1_000_000, 1_000);
+
+        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
+
+        // Buyer purchases 1 wei of coupon at price 2 USDC (2_000_000 base units)
+        // With rounding up: totalCost must be >= 1 base unit of USDC
+        // On unhardened code: totalCost = (1 * 2_000_000) / 1e18 = 0
+        vm.prank(buyer1);
+        auction.buy(auctionId, 1, type(uint256).max);
+
+        uint256 sellerUsdcGained = usdc.balanceOf(seller) - sellerUsdcBefore;
+        assertGt(sellerUsdcGained, 0, "Seller received 0 USDC for sold coupons (buyer got free tokens)");
+    }
+
+    function testFuzz_totalCostRoundingUp_andEscrowReconciliation(
+        uint256 auctionAmount,
+        uint256 startPrice,
+        uint256 floorPrice,
+        uint256 duration,
+        uint256 warpTime,
+        uint256 buyAmount
+    ) public {
+        auctionAmount = bound(auctionAmount, 1, 1_000e18);
+        startPrice = bound(startPrice, 1, 100_000e6);
+        floorPrice = bound(floorPrice, 1, startPrice);
+        duration = bound(duration, 10, 86400);
+        warpTime = bound(warpTime, 0, duration * 2);
+        buyAmount = bound(buyAmount, 1, auctionAmount);
+
+        vm.prank(seller);
+        uint256 auctionId = auction.createAuction(
+            2,
+            auctionAmount,
+            startPrice,
+            floorPrice,
+            duration
+        );
+
+        vm.warp(T0 + warpTime);
+        uint256 price = auction.currentPrice(auctionId);
+
+        uint256 expectedCost = Math.mulDiv(buyAmount, price, 1e18, Math.Rounding.Ceil);
+        usdc.mint(buyer1, expectedCost);
+
+        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
+        uint256 buyerUsdcBefore = usdc.balanceOf(buyer1);
+
+        vm.prank(buyer1);
+        auction.buy(auctionId, buyAmount, price);
+
+        uint256 sellerProceeds = usdc.balanceOf(seller) - sellerUsdcBefore;
+        uint256 buyerCost = buyerUsdcBefore - usdc.balanceOf(buyer1);
+
+        // Invariant: totalCost * COUPON_PRECISION >= amount * price for all inputs
+        assertEq(sellerProceeds, expectedCost, "Seller proceeds must equal rounded-up totalCost");
+        assertEq(buyerCost, expectedCost, "Buyer paid rounded-up totalCost");
+        assertTrue(
+            sellerProceeds * 1e18 >= buyAmount * price,
+            "Rounding up invariant violated: buyer underpaid"
+        );
+
+        // Escrow reconciliation: remaining balance in auction contract equals (auctionAmount - buyAmount)
+        uint256 remaining = auctionAmount - buyAmount;
+        assertEq(auction.getAuction(auctionId).amount, remaining, "Auction remaining mismatch");
+        assertEq(coupon.balanceOf(address(auction), 2), remaining, "Escrow balance mismatch");
+
+        // Cancel remaining if any: seller gets exactly remaining, escrow is 0
+        if (remaining > 0) {
+            uint256 sellerCouponsBefore = coupon.balanceOf(seller, 2);
+            vm.prank(seller);
+            auction.cancel(auctionId);
+            assertEq(
+                coupon.balanceOf(seller, 2) - sellerCouponsBefore,
+                remaining,
+                "Cancel refund mismatch"
+            );
+            assertEq(coupon.balanceOf(address(auction), 2), 0, "Escrow not empty after cancel");
+        }
     }
 }
 

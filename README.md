@@ -122,16 +122,18 @@ The **Prism Dividend Dutch Auction** provides continuous on-chain price discover
 
 ---
 
-## 6. Security Invariants & Formal Checks
+## 6. Invariants & Fuzz Testing
 
-Prism enforces the following mathematical invariants, formally verified across 256 fuzzing runs:
+Prism enforces the following mathematical invariants, tested across 256 fuzzing runs:
 
 1. **Collateral Conservation**:
    $$\text{MockStock.balanceOf}(\text{Vault}) \equiv \text{PrincipalToken.totalSupply}()$$
 2. **Coupon Supply Integrity**:
    $$\forall e \in \text{Epochs}, \quad \text{EpochCoupon.totalSupply}(e) \equiv \text{Deposits}_{t < \text{exDate}} - \text{Burned}_{\text{claim}} - \text{Burned}_{\text{recombine}}$$
-3. **Reentrancy Immunity**: All state-modifying functions enforce OpenZeppelin `nonReentrant` and follow the Checks-Effects-Interactions pattern.
-4. **Token Isolation**: Minting and burning of both `PrincipalToken` and `EpochCoupon` are strictly locked behind immutable `onlyVault` access control.
+3. **Non-Dilutive Recombination**: Reconstituting 1.0 share requires burning 1.0 Principal Token alongside active coupons with zero slippage or loss, substantiated by `test_recombine_beforeExDate`, `test_recombine_afterExDate`, and `testFuzz_depositRecombineInvariants`.
+4. **Auction Rounding Invariant**: In `PrismAuction.sol`, buyers never underpay for fractional coupons; `totalCost * 1e18 >= amount * price`, substantiated by `testFuzz_totalCostRoundingUp_andEscrowReconciliation`.
+5. **Reentrancy Immunity**: All state-modifying functions enforce OpenZeppelin `nonReentrant` and follow the Checks-Effects-Interactions pattern.
+6. **Token Isolation**: Minting and burning of both `PrincipalToken` and `EpochCoupon` are strictly locked behind immutable `onlyVault` access control.
 
 ---
 

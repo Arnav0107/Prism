@@ -1,0 +1,91 @@
+.prism-curve-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prism-curve-screen__assumption-card {
+  border-left: 3px solid var(--color-vermilion);
+}
+
+.prism-curve-screen__assumption-row {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.prism-curve-screen__currency-prefix {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.prism-curve-screen .prism-input {
+  padding-left: var(--space-6);
+}
+
+.prism-formula-box {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-2xs);
+  line-height: 1.6;
+}
+
+.prism-formula-box__title {
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.prism-formula-box code {
+  color: var(--color-vermilion);
+  display: block;
+  font-weight: 500;
+}
+
+.prism-formula-box__sub {
+  color: var(--color-text-secondary);
+  display: block;
+  margin-top: var(--space-1);
+}
+
+.prism-curve-chart {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border-subtle);
+  padding: var(--space-4);
+}
+
+.prism-curve-chart__svg {
+  width: 100%;
+  height: 220px;
+  overflow: visible;
+}
+
+.prism-curve-chart__axis-text {
+  font-size: 10px;
+  fill: var(--color-text-muted);
+}
+
+.prism-curve-chart__point-text {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--color-text);
+}
+
+.prism-yield-val {
+  color: var(--color-vermilion);
+}
+
+.prism-table__loading {
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .prism-curve-screen__assumption-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -106,7 +106,7 @@ export const DecompositionSection: React.FC = () => {
           <div className="prism-decomp__card-footer">
             <Label variant="muted">TARGET HOLDER</Label>
             <p className="prism-decomp__holder-text">
-              Yield funds, cash managers, and fixed-income strategies seeking guaranteed cash-flow extraction without equity downside.
+              Yield funds, cash managers, and fixed-income strategies seeking dividend cash-flow extraction without equity downside.
             </p>
           </div>
         </article>

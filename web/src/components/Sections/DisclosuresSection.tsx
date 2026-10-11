@@ -5,7 +5,7 @@ import './DisclosuresSection.css';
 interface ItemSpec {
   name: string;
   type: string;
-  status: 'LIVE ON MONAD' | 'TESTNET MOCK' | 'PLANNED';
+  status: 'IN REPO / NOT DEPLOYED' | 'TESTNET MOCK' | 'PLANNED';
   description: string;
   fileLink: string;
 }
@@ -14,28 +14,28 @@ const ITEMS: ItemSpec[] = [
   {
     name: "PrismVault.sol",
     type: "Smart Contract",
-    status: "LIVE ON MONAD",
+    status: "IN REPO / NOT DEPLOYED",
     description: "Core custody and bifurcation engine. Enforces strict solvency invariant: 1 Share ⇌ 1 PT + 1 EC. Fixed deposit, claim, and recombination logic.",
     fileLink: "https://github.com/Arnav0107/Prism/blob/main/contracts/PrismVault.sol"
   },
   {
     name: "PrismAuction.sol",
     type: "Smart Contract",
-    status: "LIVE ON MONAD",
+    status: "IN REPO / NOT DEPLOYED",
     description: "Descending Dutch Auction engine for ERC-1155 coupons. Per-second price decay against block.timestamp with full buyer protection.",
     fileLink: "https://github.com/Arnav0107/Prism/blob/main/contracts/PrismAuction.sol"
   },
   {
     name: "PrincipalToken.sol",
     type: "Smart Contract",
-    status: "LIVE ON MONAD",
+    status: "IN REPO / NOT DEPLOYED",
     description: "ERC-20 token representing perpetual underlying equity stripped of intermediate dividend distributions.",
     fileLink: "https://github.com/Arnav0107/Prism/blob/main/contracts/PrincipalToken.sol"
   },
   {
     name: "EpochCoupon.sol",
     type: "Smart Contract",
-    status: "LIVE ON MONAD",
+    status: "IN REPO / NOT DEPLOYED",
     description: "ERC-1155 multi-token issuing discrete quarterly dividend claim vouchers, burned upon pro-rata USDC redemption.",
     fileLink: "https://github.com/Arnav0107/Prism/blob/main/contracts/EpochCoupon.sol"
   },
@@ -62,7 +62,7 @@ export const DisclosuresSection: React.FC = () => {
       number="05"
       category="SPECIFICATIONS & TESTING"
       heading="What Is Real"
-      lead="Transparent architectural inventory distinguishing production-ready smart contracts from testnet fixtures."
+      lead="Transparent architectural inventory distinguishing implemented and tested smart contracts from testnet fixtures."
     >
       <div className="prism-disclosures__grid">
         {ITEMS.map((item, idx) => (
@@ -72,7 +72,7 @@ export const DisclosuresSection: React.FC = () => {
                 <span className="prism-disclosures__item-type font-mono">{item.type}</span>
                 <h3 className="prism-disclosures__item-name font-mono">{item.name}</h3>
               </div>
-              <Badge variant={item.status === 'LIVE ON MONAD' ? 'accent' : 'neutral'}>
+              <Badge variant={item.status === 'IN REPO / NOT DEPLOYED' ? 'accent' : 'neutral'}>
                 {item.status}
               </Badge>
             </div>

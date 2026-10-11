@@ -34,7 +34,7 @@ const PARTICIPANTS: Participant[] = [
   },
   {
     role: "Arbitrageur & Market Maker",
-    objective: "Risk-free basis extraction keeping synthetic parity tightly aligned with spot markets.",
+    objective: "Basis extraction keeping synthetic parity tightly aligned with spot markets.",
     instrument: "Synthetic Package (PT + EC)",
     mechanic: "Mints when Stock < PT + EC; recombines and redeems underlying when PT + EC < Stock.",
     profileType: "neutral"
@@ -86,7 +86,7 @@ export const ParticipantsSection: React.FC = () => {
       <div className="prism-participants__footer font-mono">
         <Label variant="muted">CAPITAL EFFICIENCY</Label>
         <span className="prism-participants__footnote">
-          Zero protocol haircut · Full collateralization · Non-custodial settlement
+          No protocol fee in MVP · Full collateralization
         </span>
       </div>
     </Section>

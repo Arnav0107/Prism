@@ -16,32 +16,32 @@ const STEPS: Step[] = [
     num: "01",
     title: "Deposit & Bifurcate",
     code: "vault.deposit(amount)",
-    summary: "Lock equity shares into the immutable vault contract.",
-    details: "The vault escrows underlying MockStock shares. It concurrently mints PrincipalToken (ERC-20) 1:1 and EpochCoupon (ERC-1155) for the active quarterly cycle.",
-    stateChange: "+1.0 PT  |  +1.0 EC(epoch)"
+    summary: "Lock equity shares into the vault contract.",
+    details: "The vault escrows underlying MockStock shares. It concurrently mints PrincipalToken (ERC-20) 1:1 and EpochCoupon (ERC-1155) for all active cycle epochs.",
+    stateChange: "+1.0 PT  |  +1.0 EC(epochs)"
   },
   {
     num: "02",
     title: "Fund Dividend Pool",
-    code: "vault.fundEpoch(epochId, amount)",
+    code: "vault.fundEpoch(epochId)",
     summary: "Oracle or source deposits quarterly dividend in USDC.",
-    details: "Prior to the ex-dividend timestamp, the dividend source transfers USDC. The vault snapshots `fundedSupply` to guarantee mathematical solvency and freeze pro-rata entitlement ratios.",
+    details: "Prior to the ex-dividend timestamp, the dividend source transfers USDC. The vault snapshots `fundedSupply` to enforce mathematical solvency and freeze pro-rata entitlement ratios.",
     stateChange: "USDC escrowed  |  fundedSupply snapshotted"
   },
   {
     num: "03",
     title: "Harvest or Auction",
-    code: "auction.buy(id, qty)  |  vault.claim(epochId)",
+    code: "auction.buy(auctionId, amount, maxPrice) | vault.claim(epochId, amount)",
     summary: "Extract cash flow post-ex-date or sell upfront via Dutch Auction.",
-    details: "Coupon holders can hold until ex-date to claim USDC directly from the vault, or list their coupons in the continuous descending-price Dutch Auction to realize immediate liquidity without slippage.",
+    details: "Coupon holders can hold until ex-date to claim USDC directly from the vault, or list their coupons in the continuous descending-price Dutch Auction (createAuction / createBatchAuctions) to realize immediate liquidity.",
     stateChange: "-1.0 EC  |  +pro-rata USDC claimed"
   },
   {
     num: "04",
     title: "Recombine & Redeem",
-    code: "vault.redeem(amount)",
+    code: "vault.recombine(amount) | vault.redeemPrincipal(amount)",
     summary: "Burn synthetic tokens to recover original equity shares.",
-    details: "Whenever a holder has 1.0 Principal Token alongside 1.0 Epoch Coupon of the current live epoch, they may recombine them to immediately withdraw 1.0 underlying MockStock share with zero dilution.",
+    details: "Holders with 1.0 Principal Token alongside 1.0 Epoch Coupon for each live epoch may call recombine(amount) to withdraw 1.0 underlying MockStock share. After all epochs mature, redeemPrincipal(amount) unlocks the underlying.",
     stateChange: "-1.0 PT  |  -1.0 EC  |  +1.0 Share"
   }
 ];
@@ -53,7 +53,7 @@ export const HowItWorksSection: React.FC = () => {
       number="02"
       category="LIFECYCLE PROTOCOL"
       heading="Settlement Mechanics"
-      lead="A four-stage lifecycle executed fully on-chain with deterministic solvency guarantees."
+      lead="A four-stage lifecycle executed fully on-chain with invariant-tested accounting."
     >
       <div className="prism-steps__grid">
         {STEPS.map((step) => (

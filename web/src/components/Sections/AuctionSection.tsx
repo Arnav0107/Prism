@@ -164,11 +164,11 @@ export const AuctionSection: React.FC = () => {
         <div className="prism-auction__ticker-panel">
           <div className="prism-auction__panel-header">
             <span className="font-mono prism-auction__panel-title">
-              LIVE LOT SPECIFICATION
+              SAMPLE LOT SPECIFICATION
             </span>
             <span className="prism-auction__live-indicator font-mono">
               <span className={`prism-auction__live-dot ${isLive ? 'prism-auction__live-dot--active' : ''}`}></span>
-              {isLive ? 'STREAMING' : 'PAUSED'}
+              {isLive ? 'ILLUSTRATIVE' : 'PAUSED'}
             </span>
           </div>
 

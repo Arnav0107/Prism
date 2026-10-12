@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateBuyCostCeil,
+  calculateDutchPrice,
   formatStock,
   formatUsdc,
   formatUsdcPrice,
@@ -53,8 +54,12 @@ describe('Chain Adapter Math & Rounding', () => {
 
   it('formats stock and USDC quantities cleanly', () => {
     expect(formatStock(1n * COUPON_PRECISION)).toBe('1.00');
+    expect(formatStock(0n)).toBe('0.00');
+    expect(formatStock(1234567n * COUPON_PRECISION)).toBe('1,234,567.00');
     expect(formatUsdc(1_250_000n)).toBe('1.25');
+    expect(formatUsdc(0n)).toBe('0.00');
     expect(formatUsdcPrice(500_000n)).toBe('0.5000');
+    expect(formatUsdcPrice(1_754_321n)).toBe('1.7543');
   });
 
   it('parses valid inputs and safely returns 0n on invalid inputs', () => {
@@ -62,6 +67,48 @@ describe('Chain Adapter Math & Rounding', () => {
     expect(parseUsdc('2.25')).toBe(2_250_000n);
     expect(parseStock('abc')).toBe(0n);
     expect(parseUsdc('')).toBe(0n);
+    expect(parseStock('   ')).toBe(0n);
+  });
+});
+
+describe('Dutch Auction Linear Price Decay Helper', () => {
+  const startPrice = 2_000_000n; // $2.00
+  const floorPrice = 500_000n;   // $0.50
+  const startTime = 1000n;
+  const duration = 1000n;        // 1000 seconds
+
+  it('returns startPrice at t = 0 (startTime)', () => {
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, duration, startTime);
+    expect(price).toBe(startPrice);
+  });
+
+  it('returns startPrice if currentTime is before startTime', () => {
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, duration, startTime - 50n);
+    expect(price).toBe(startPrice);
+  });
+
+  it('returns exact midpoint at elapsed = duration / 2', () => {
+    const midTime = startTime + duration / 2n;
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, duration, midTime);
+    // Midpoint: 2.00 - (1.50 * 500) / 1000 = 2.00 - 0.75 = 1.25
+    expect(price).toBe(1_250_000n);
+  });
+
+  it('returns floorPrice at elapsed = duration', () => {
+    const endTime = startTime + duration;
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, duration, endTime);
+    expect(price).toBe(floorPrice);
+  });
+
+  it('clamps strictly to floorPrice after duration has elapsed', () => {
+    const pastTime = startTime + duration + 500n;
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, duration, pastTime);
+    expect(price).toBe(floorPrice);
+  });
+
+  it('returns floorPrice if duration is 0', () => {
+    const price = calculateDutchPrice(startPrice, floorPrice, startTime, 0n, startTime + 10n);
+    expect(price).toBe(floorPrice);
   });
 });
 
@@ -85,6 +132,42 @@ describe('Custom Revert Error Decoder', () => {
 
     expect(formatCustomErrorMessage('InsufficientAuctionLiquidity')).toContain(
       'Requested quantity exceeds the remaining tokens'
+    );
+
+    expect(formatCustomErrorMessage('EpochsSealed')).toContain(
+      'Epoch creation is sealed'
+    );
+
+    expect(formatCustomErrorMessage('MaxEpochsExceeded')).toContain(
+      'Maximum number of distribution epochs'
+    );
+
+    expect(formatCustomErrorMessage('MaxHorizonExceeded')).toContain(
+      'exceeds maximum horizon'
+    );
+
+    expect(formatCustomErrorMessage('CannotEnableDemoMode')).toContain(
+      'Demo mode cannot be re-enabled'
+    );
+
+    expect(formatCustomErrorMessage('UnsupportedCollateral')).toContain(
+      'Fee-on-transfer or rebasing tokens are unsupported'
+    );
+
+    expect(formatCustomErrorMessage('EventNotLocked', [3])).toContain(
+      'Corporate action for epoch 3 must be locked before funding'
+    );
+
+    expect(formatCustomErrorMessage('EventAlreadyLocked', [3])).toContain(
+      'Corporate action for epoch 3 is locked and immutable'
+    );
+
+    expect(formatCustomErrorMessage('EpochAwaitingFunding', [1])).toContain(
+      'awaiting dividend funding'
+    );
+
+    expect(formatCustomErrorMessage('FillBelowMinimum')).toContain(
+      'minimum fill threshold'
     );
   });
 

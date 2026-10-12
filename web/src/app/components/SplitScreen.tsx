@@ -7,6 +7,7 @@ import {
   depositShares,
   recombineShares,
   redeemPrincipal,
+  mintMockTokens,
   DEPLOYED_ADDRESSES,
 } from '../../chain/contracts';
 import { decodeContractError } from '../../chain/errors';
@@ -16,6 +17,7 @@ export const SplitScreen: React.FC = () => {
   const {
     walletClient,
     publicClient,
+    accountAddress,
     vaultData,
     userBalances,
     refreshData,
@@ -64,6 +66,31 @@ export const SplitScreen: React.FC = () => {
   const parsedRedeem = parseStock(redeemInput);
   const hasFutureEpochs =
     vaultData?.epochs.some((e) => !e.funded && e.exDate > now) ?? true;
+
+  const handleMintStock = async () => {
+    setIsSubmitting(true);
+    const toastId = addToast({
+      type: 'pending',
+      title: 'Minting Test Stock',
+      message: 'Minting 100 mSTOCK to your account...',
+    });
+
+    try {
+      const hash = await mintMockTokens(walletClient, 'stock', accountAddress, parseStock('100'));
+      updateToast(toastId, { message: 'Waiting for block inclusion...', hash });
+      await publicClient.waitForTransactionReceipt({ hash });
+      updateToast(toastId, { type: 'success', title: 'Test Stock Minted', message: 'Received 100 mSTOCK.' });
+      await refreshData();
+    } catch (err) {
+      updateToast(toastId, {
+        type: 'error',
+        title: 'Mint Failed',
+        message: decodeContractError(err),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleApprove = async () => {
     setIsSubmitting(true);
@@ -197,9 +224,21 @@ export const SplitScreen: React.FC = () => {
           <div className="prism-form-group">
             <div className="prism-form-group__label-row">
               <label htmlFor="deposit-amount-input">AMOUNT (mSTOCK)</label>
-              <span className="prism-form-group__balance">
-                AVAILABLE: {userBalances ? formatStock(userBalances.stockBalance) : '0.00'}
-              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span className="prism-form-group__balance">
+                  AVAILABLE: {userBalances ? formatStock(userBalances.stockBalance) : '0.00'}
+                </span>
+                <button
+                  type="button"
+                  className="prism-input__max-btn font-mono"
+                  style={{ textDecoration: 'underline', padding: '2px 8px', height: 'auto', background: 'transparent', cursor: 'pointer' }}
+                  onClick={handleMintStock}
+                  disabled={isSubmitting}
+                  title="Mint 100 free testnet stock tokens"
+                >
+                  + FAUCET (MINT 100)
+                </button>
+              </div>
             </div>
 
             <div className="prism-input-wrapper">

@@ -16,6 +16,13 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import deploymentsLocal from './deployments.local.json';
+import {
+  MONAD_TESTNET_CHAIN_ID,
+  LOCAL_CHAIN_ID,
+  monadTestnetChain,
+  getDeploymentsForChain,
+  isDeployedOnMonad,
+} from '../config/deployments';
 
 import PrismVaultAbi from './abi/PrismVault.json';
 import PrismAuctionAbi from './abi/PrismAuction.json';
@@ -25,8 +32,9 @@ import MockStockAbi from './abi/MockStock.json';
 import MockUSDCAbi from './abi/MockUSDC.json';
 import MockDividendSourceAbi from './abi/MockDividendSource.json';
 
-export const LOCAL_CHAIN_ID = 31337;
+export { MONAD_TESTNET_CHAIN_ID, LOCAL_CHAIN_ID, monadTestnetChain };
 export const DEFAULT_RPC_URL = 'http://127.0.0.1:8545';
+export const MONAD_RPC_URL = 'https://testnet-rpc.monad.xyz';
 
 export const localAnvilChain: Chain = defineChain({
   id: 31337,
@@ -51,14 +59,18 @@ export interface ContractAddresses {
   PrismAuction: Address;
 }
 
+const activeManifest = isDeployedOnMonad
+  ? getDeploymentsForChain(MONAD_TESTNET_CHAIN_ID)
+  : deploymentsLocal.contracts;
+
 export const DEPLOYED_ADDRESSES: ContractAddresses = {
-  MockStock: (deploymentsLocal.contracts.MockStock || '0x0') as Address,
-  MockUSDC: (deploymentsLocal.contracts.MockUSDC || '0x0') as Address,
-  MockDividendSource: (deploymentsLocal.contracts.MockDividendSource || '0x0') as Address,
-  PrismVault: (deploymentsLocal.contracts.PrismVault || '0x0') as Address,
-  PrincipalToken: (deploymentsLocal.contracts.PrincipalToken || '0x0') as Address,
-  EpochCoupon: (deploymentsLocal.contracts.EpochCoupon || '0x0') as Address,
-  PrismAuction: (deploymentsLocal.contracts.PrismAuction || '0x0') as Address,
+  MockStock: (activeManifest.MockStock || '0x0') as Address,
+  MockUSDC: (activeManifest.MockUSDC || '0x0') as Address,
+  MockDividendSource: (activeManifest.MockDividendSource || '0x0') as Address,
+  PrismVault: (activeManifest.PrismVault || '0x0') as Address,
+  PrincipalToken: (activeManifest.PrincipalToken || '0x0') as Address,
+  EpochCoupon: (activeManifest.EpochCoupon || '0x0') as Address,
+  PrismAuction: (activeManifest.PrismAuction || '0x0') as Address,
 };
 
 export const ANVIL_DEV_ACCOUNTS = [
@@ -123,6 +135,26 @@ export function calculateBuyCostCeil(amountInWei: bigint, priceInUsdcBaseUnits: 
   return (numerator + COUPON_PRECISION - 1n) / COUPON_PRECISION;
 }
 
+/**
+ * Calculates current Dutch auction price at timestamp currentTime.
+ * Linear decay: P(t) = startPrice - ((startPrice - floorPrice) * elapsed) / duration
+ * Clamped deterministically between floorPrice and startPrice.
+ */
+export function calculateDutchPrice(
+  startPrice: bigint,
+  floorPrice: bigint,
+  startTime: bigint,
+  duration: bigint,
+  currentTime: bigint
+): bigint {
+  if (currentTime <= startTime) return startPrice;
+  const elapsed = currentTime - startTime;
+  if (elapsed >= duration || duration === 0n) return floorPrice;
+  const priceSpread = startPrice - floorPrice;
+  const decay = (priceSpread * elapsed) / duration;
+  return startPrice - decay;
+}
+
 export function formatStock(amount: bigint): string {
   const num = Number(formatUnits(amount, 18));
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -161,6 +193,20 @@ export function getLocalPublicClient(rpcUrl: string = DEFAULT_RPC_URL): PublicCl
   });
 }
 
+export function getMonadPublicClient(rpcUrl: string = MONAD_RPC_URL): PublicClient {
+  return createPublicClient({
+    chain: monadTestnetChain,
+    transport: http(rpcUrl),
+  });
+}
+
+export function getPublicClient(chainId: number = LOCAL_CHAIN_ID): PublicClient {
+  if (chainId === MONAD_TESTNET_CHAIN_ID) {
+    return getMonadPublicClient();
+  }
+  return getLocalPublicClient();
+}
+
 export function getDevWalletClient(privateKey: `0x${string}`, rpcUrl: string = DEFAULT_RPC_URL): WalletClient {
   const account = privateKeyToAccount(privateKey);
   return createWalletClient({
@@ -170,13 +216,14 @@ export function getDevWalletClient(privateKey: `0x${string}`, rpcUrl: string = D
   });
 }
 
-export function getInjectedWalletClient(): WalletClient | null {
+export function getInjectedWalletClient(chainId: number = LOCAL_CHAIN_ID): WalletClient | null {
   if (typeof window === 'undefined' || !(window as unknown as { ethereum?: unknown }).ethereum) {
     return null;
   }
+  const chain = chainId === MONAD_TESTNET_CHAIN_ID ? monadTestnetChain : localAnvilChain;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createWalletClient({
-    chain: localAnvilChain,
+    chain,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transport: custom((window as any).ethereum),
   });

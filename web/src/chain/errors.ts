@@ -89,6 +89,30 @@ export function formatCustomErrorMessage(errorName: string, args?: readonly unkn
     }
     case 'OnlySeller':
       return 'Only the original seller can cancel this auction.';
+    case 'EpochsSealed':
+      return 'Epoch creation is sealed. Schedule cannot be modified after launch or first deposit.';
+    case 'MaxEpochsExceeded':
+      return 'Maximum number of distribution epochs (16) reached.';
+    case 'MaxHorizonExceeded':
+      return 'Epoch ex-date exceeds maximum horizon (400 days).';
+    case 'CannotEnableDemoMode':
+      return 'Demo mode cannot be re-enabled after protocol launch.';
+    case 'UnsupportedCollateral':
+      return 'Collateral transfer failed 1:1 balance check. Fee-on-transfer or rebasing tokens are unsupported.';
+    case 'EventNotLocked': {
+      const id = args && args[0] !== undefined ? String(args[0]) : '';
+      return `Corporate action for epoch ${id ? id + ' ' : ''}must be locked before funding.`;
+    }
+    case 'EventAlreadyLocked': {
+      const id = args && args[0] !== undefined ? String(args[0]) : '';
+      return `Corporate action for epoch ${id ? id + ' ' : ''}is locked and immutable.`;
+    }
+    case 'EpochAwaitingFunding': {
+      const id = args && args[0] !== undefined ? String(args[0]) : '';
+      return `Epoch ${id ? id + ' ' : ''}is awaiting dividend funding. Principal redemptions are blocked during the 30-day grace window.`;
+    }
+    case 'FillBelowMinimum':
+      return 'Order size is below the minimum fill threshold (0.001 coupons) unless filling the entire remaining auction.';
     case 'ReentrancyGuardReentrantCall':
       return 'Transaction reentrancy guard triggered.';
     default:

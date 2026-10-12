@@ -1,17 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import {
-  getLocalPublicClient,
+  getPublicClient,
   getDevWalletClient,
   getInjectedWalletClient,
   ANVIL_DEV_ACCOUNTS,
   LOCAL_CHAIN_ID,
+  MONAD_TESTNET_CHAIN_ID,
   fetchVaultOverview,
   fetchUserBalances,
   fetchMarketAuctions,
   type EpochData,
   type AuctionView,
 } from '../../chain/contracts';
+import { isDeployedOnMonad } from '../../config/deployments';
 
 export type AppTab = 'split' | 'market' | 'curve' | 'portfolio';
 
@@ -27,7 +29,7 @@ export interface AppContextType {
   chainId: number;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
-  // Account
+  // Account & Network
   isDevAccount: boolean;
   activeAccountIndex: number;
   setActiveDevAccount: (index: number) => void;
@@ -36,6 +38,7 @@ export interface AppContextType {
   publicClient: PublicClient;
   isConnectingInjected: boolean;
   connectInjected: () => Promise<void>;
+  switchChain: (targetChainId: number) => Promise<void>;
   useInjectedWallet: boolean;
   // Data
   vaultData: {
@@ -69,7 +72,10 @@ export interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const chainId = LOCAL_CHAIN_ID;
+  const [chainId, setChainId] = useState<number>(() => {
+    return isDeployedOnMonad ? MONAD_TESTNET_CHAIN_ID : LOCAL_CHAIN_ID;
+  });
+
   const getInitialTab = (): AppTab => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.toLowerCase();
@@ -79,6 +85,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return 'split';
   };
+
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [activeAccountIndex, setActiveAccountIndex] = useState<number>(0);
   const [useInjected, setUseInjected] = useState<boolean>(false);
@@ -94,7 +101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isDemoDrawerOpen, setDemoDrawerOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const publicClient = useMemo(() => getLocalPublicClient(), []);
+  const publicClient = useMemo(() => getPublicClient(chainId), [chainId]);
 
   const activeDevAccount = ANVIL_DEV_ACCOUNTS[activeAccountIndex] ?? ANVIL_DEV_ACCOUNTS[0];
 
@@ -102,11 +109,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const walletClient: WalletClient = useMemo(() => {
     if (useInjected) {
-      const inj = getInjectedWalletClient();
+      const inj = getInjectedWalletClient(chainId);
       if (inj) return inj;
     }
     return getDevWalletClient(activeDevAccount.privateKey);
-  }, [useInjected, activeDevAccount]);
+  }, [useInjected, chainId, activeDevAccount]);
 
   const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -129,19 +136,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addToast({
           type: 'error',
           title: 'No Web3 Wallet Found',
-          message: 'Please install MetaMask or a compatible browser extension.',
+          message: 'Please install MetaMask, Rabby, or a compatible browser extension.',
         });
         return;
       }
-      const client = getInjectedWalletClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ethereum = (window as any).ethereum;
+      const client = getInjectedWalletClient(chainId);
       if (!client) throw new Error('Could not initialize injected client');
+
       const accounts = await client.requestAddresses();
       if (accounts && accounts.length > 0) {
         setInjectedAddress(accounts[0]);
         setUseInjected(true);
+
+        // Detect current wallet chain
+        try {
+          const hexChain = await ethereum.request({ method: 'eth_chainId' });
+          if (hexChain) {
+            const parsed = parseInt(hexChain, 16);
+            setChainId(parsed);
+          }
+        } catch {
+          // Ignore chain check error
+        }
+
         addToast({
           type: 'success',
-          title: 'Injected Wallet Connected',
+          title: 'Wallet Connected',
           message: `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`,
         });
       }
@@ -154,7 +176,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsConnectingInjected(false);
     }
-  }, [addToast]);
+  }, [addToast, chainId]);
+
+  const switchChain = useCallback(
+    async (targetChainId: number) => {
+      if (typeof window === 'undefined' || !(window as unknown as { ethereum?: unknown }).ethereum) {
+        setChainId(targetChainId);
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ethereum = (window as any).ethereum;
+      const hexChainId = `0x${targetChainId.toString(16)}`;
+
+      try {
+        await ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: hexChainId }],
+        });
+        setChainId(targetChainId);
+      } catch (switchError: any) {
+        // Code 4902 means the chain has not been added to the wallet yet
+        if (switchError?.code === 4902 && targetChainId === MONAD_TESTNET_CHAIN_ID) {
+          try {
+            await ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [
+                {
+                  chainId: hexChainId,
+                  chainName: 'Monad Testnet',
+                  nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
+                  rpcUrls: ['https://testnet-rpc.monad.xyz'],
+                  blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+                },
+              ],
+            });
+            setChainId(targetChainId);
+          } catch (addError) {
+            console.error('Failed to add Monad Testnet to wallet:', addError);
+          }
+        } else {
+          setChainId(targetChainId);
+        }
+      }
+    },
+    []
+  );
+
+  // Listen for account/chain changes
+  useEffect(() => {
+    if (typeof window === 'undefined' || !(window as unknown as { ethereum?: unknown }).ethereum) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ethereum = (window as any).ethereum;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts && accounts.length > 0) {
+        setInjectedAddress(accounts[0] as Address);
+        setUseInjected(true);
+      } else {
+        setUseInjected(false);
+        setInjectedAddress(null);
+      }
+    };
+
+    const handleChainChanged = (hexChain: string) => {
+      const parsed = parseInt(hexChain, 16);
+      setChainId(parsed);
+    };
+
+    ethereum.on?.('accountsChanged', handleAccountsChanged);
+    ethereum.on?.('chainChanged', handleChainChanged);
+
+    return () => {
+      ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
+      ethereum.removeListener?.('chainChanged', handleChainChanged);
+    };
+  }, []);
 
   const refreshData = useCallback(async () => {
     try {
@@ -205,6 +301,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     publicClient,
     isConnectingInjected,
     connectInjected,
+    switchChain,
     useInjectedWallet: useInjected,
     vaultData,
     userBalances,

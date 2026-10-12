@@ -16,18 +16,18 @@
 
 ## 2. Architecture & Contracts
 
-All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts):
+All contracts reside in [`contracts/`](contracts):
 
 | Contract | Standard | Description |
 |---|---|---|
-| [`MockStock.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockStock.sol) | ERC-20 (18 dec) | Test collateral representing tokenized equity (with public mint). |
-| [`MockUSDC.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockUSDC.sol) | ERC-20 (6 dec) | Test stablecoin representing dividend cashflow distributions. |
-| [`IDividendSource.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/IDividendSource.sol) | Interface | Declares corporate actions (`DIVIDEND`, `SPLIT`, `OTHER`) and payout rates. |
-| [`MockDividendSource.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockDividendSource.sol) | Ownable | Owner-controlled corporate action registry with strict action typing. |
-| [`PrincipalToken.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrincipalToken.sol) | ERC-20 (18 dec) | Capital exposure leg. Mint and burn restricted exclusively to `PrismVault`. |
-| [`EpochCoupon.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/EpochCoupon.sol) | ERC-1155 (Supply) | Per-epoch dividend coupons (`id = epochId`). Mint/burn restricted to `PrismVault`. |
-| [`PrismVault.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismVault.sol) | Vault Core | Coordinates deposits, epoch funding, claims, recombines, and principal redemptions. |
-| [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol) | Marketplace | Dutch auction marketplace for continuous EpochCoupon price discovery and liquidity. |
+| [`MockStock.sol`](contracts/MockStock.sol) | ERC-20 (18 dec) | Test collateral representing tokenized equity (with public mint). |
+| [`MockUSDC.sol`](contracts/MockUSDC.sol) | ERC-20 (6 dec) | Test stablecoin representing dividend cashflow distributions. |
+| [`IDividendSource.sol`](contracts/IDividendSource.sol) | Interface | Declares corporate actions (`DIVIDEND`, `SPLIT`, `OTHER`) and payout rates. |
+| [`MockDividendSource.sol`](contracts/MockDividendSource.sol) | Ownable | Owner-controlled corporate action registry with strict action typing. |
+| [`PrincipalToken.sol`](contracts/PrincipalToken.sol) | ERC-20 (18 dec) | Capital exposure leg. Mint and burn restricted exclusively to `PrismVault`. |
+| [`EpochCoupon.sol`](contracts/EpochCoupon.sol) | ERC-1155 (Supply) | Per-epoch dividend coupons (`id = epochId`). Mint/burn restricted to `PrismVault`. |
+| [`PrismVault.sol`](contracts/PrismVault.sol) | Vault Core | Coordinates deposits, epoch funding, claims, recombines, and principal redemptions. |
+| [`PrismAuction.sol`](contracts/PrismAuction.sol) | Marketplace | Dutch auction marketplace for continuous EpochCoupon price discovery and liquidity. |
 
 ---
 
@@ -56,21 +56,27 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 
 ### 1. Epoch Creation (`createEpoch`)
 - The vault admin registers distribution epochs with strict validation:
-  - `exDate` must be in the future (`> block.timestamp`).
+  - The schedule is fixed before the first deposit. Once the vault is sealed (automatically on the first `deposit` or early via `seal()`), `createEpoch` reverts with `EpochsSealed()`.
+  - Bounded epochs: maximum `MAX_EPOCHS = 16` distribution epochs.
+  - Bounded horizon: `exDate` cannot exceed `block.timestamp + MAX_EPOCH_HORIZON` (400 days).
+  - `exDate` must be strictly in the future (`> block.timestamp`).
   - `payDate` must be on or after `exDate`.
   - Consecutive `exDate` values must be strictly increasing.
 
 ### 2. Deposit (`deposit`)
 - A user locks `amount` of `MockStock` into `PrismVault`.
+- On first deposit, the vault permanently seals the epoch schedule (`isSealed = true`).
 - The vault mints `amount` of `PrincipalToken` to the user.
 - The vault mints `amount` of `EpochCoupon` **only for live epochs** (`!epoch.funded && epoch.exDate > block.timestamp`). Already funded or expired epochs are skipped to protect dividend solvency.
 
-### 3. Corporate Action Safeguard, Demo Mode & Funding (`fundEpoch`)
+### 3. Corporate Action Safeguard, Event Locking & Funding (`fundEpoch`)
 - The dividend source declares an event for an epoch (`DIVIDEND`, `SPLIT`, or `OTHER`).
+- In `MockDividendSource`, the owner can re-declare corporate actions to correct errant declarations prior to calling `lockEvent(epochId)`. Once `lockEvent` is called, the declaration is permanently immutable (`EventLocked`).
 - When `fundEpoch(epochId)` is called:
-  - If the action type is **not** `DIVIDEND` (e.g. a `SPLIT` or `OTHER`), the transaction **reverts** (`NonDividendActionType`).
-  - **Demo Mode Safeguard**: The vault includes a `demoMode` flag (default `true` on testnet to allow immediate dividend demonstrations). **In production, `demoMode` MUST be toggled to `false` via `setDemoMode(false)`**, strictly preventing `fundEpoch` before the ex-dividend date (`ExDateNotReached`).
-  - Calculates required payout: `(couponSupply(epochId) * amountPerShare) / 1e18`.
+  - Requires the corporate action event to be explicitly locked (`EventNotLocked` revert otherwise), ensuring declarations cannot be altered post-funding.
+  - If the action type is **not** `DIVIDEND` (e.g. a `SPLIT` or `OTHER`), the transaction **reverts** (`NonDividendActionType`). The owner can re-declare before locking to fix errors.
+  - **Demo Mode Safeguard**: The vault's `demoMode` is initialized via constructor argument (default `true` only on testnet deployment). `setDemoMode` is strictly **one-way**: it can only disable demo mode (`false`). Re-enabling demo mode reverts (`CannotEnableDemoMode`). When disabled, `fundEpoch` before `exDate` reverts (`ExDateNotReached`).
+  - Calculates required payout: `(couponSupply(epochId) * usdcPerShare) / 1e18`, where `usdcPerShare` is the dividend amount in USDC base units (6 decimals) per whole share (1e18 units).
   - Pulls `MockUSDC` from caller into the vault.
   - Marks epoch state as `CLAIMABLE`.
 
@@ -83,11 +89,21 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 - At any time, a user can reconstitute their underlying `MockStock` collateral by calling `recombine(amount)`.
 - Burns `amount` of `PrincipalToken`.
 - Burns `amount` of `EpochCoupon` for all **live epochs** (`!epoch.funded && epoch.exDate > block.timestamp`).
-- Epochs already funded or past `exDate` are **not required**.
+- **Funding Grace Period (`FUNDING_GRACE = 30 days`)**: Past-`exDate` epochs that are unfunded block `recombine` (which would otherwise bypass them) until the epoch is funded OR the 30-day grace period has elapsed (`block.timestamp >= exDate + FUNDING_GRACE`). This incentivizes principal holders or market makers to ensure coupon holders receive their declared dividends before principal can be reclaimed.
 
 ### 6. Principal Redemption (`redeemPrincipal`)
-- When no live distribution epochs remain (`hasFutureEpochs() == false`, i.e. all epochs are either funded or past `exDate`), the principal can be redeemed directly.
-- Burns `amount` of `PrincipalToken` and returns `amount` of `MockStock` with zero coupon requirement.
+- When no live distribution epochs remain (`hasFutureEpochs() == false`), principal can be redeemed directly.
+- **Grace Period Check**: Reverts with `EpochAwaitingFunding` if any past-`exDate` epoch remains unfunded within the 30-day grace period. Once funded or once the 30-day window expires, principal redemption unblocks.
+- Burns `amount` of `PrincipalToken` and returns `amount` of `MockStock`.
+
+### 7. Collateral Support & Limitations
+- `PrismVault.deposit` verifies actual token transfer deltas (`balanceAfter - balanceBefore == amount`) and reverts with `UnsupportedCollateral()` for any non-standard behavior.
+- **Unsupported Tokens**: Rebasing tokens (e.g. stETH), fee-on-transfer tokens, and balance-multiplier tokens are strictly unsupported as raw collateral.
+- In production, non-standard collateral must be wrapped via an ERC-4626 or dedicated vault collateral wrapper adapter before deposit.
+
+### 8. Governance & Security
+- Contracts (`PrismVault`, `MockDividendSource`) inherit OpenZeppelin `Ownable2Step`.
+- Any non-demo / production deployment must transfer protocol ownership to a multi-signature wallet (e.g., Safe) or a timelock controller to avoid single-owner compromise.
 
 ---
 
@@ -96,44 +112,56 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 The **Prism Dividend Dutch Auction** provides continuous on-chain price discovery and secondary liquidity for coupon holders wishing to sell upcoming dividend rights before the ex-dividend date.
 
 ### Core Auction Mechanics
-- **Escrow**: Sellers deposit `EpochCoupon` into [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol).
+- **Escrow**: Sellers deposit `EpochCoupon` into [`PrismAuction.sol`](contracts/PrismAuction.sol).
 - **Linear Decay**: Prices decay continuously per second from `startPrice` to `floorPrice` over `duration` seconds:
   $$P(t) = \text{startPrice} - \frac{(\text{startPrice} - \text{floorPrice}) \times \Delta t}{\text{duration}}$$
   Once $t \ge \text{duration}$, the price clamps deterministically at `floorPrice`.
 - **Immediate Settlement**: Buyers purchase coupons using `MockUSDC`. USDC is transferred directly from the buyer to the seller, and coupons are delivered to the buyer instantly.
-- **Partial Fills**: Buyers can fill any fractional amount of an auction until the remaining balance reaches zero, which automatically closes the auction.
+- **Minimum Fill & Anti-Wash Protection**: `buy` enforces `MIN_FILL = 1e15` (0.001 coupon) unless filling the entire remaining auction balance (`FillBelowMinimum` revert).
+- **Volume-Weighted Average Price (VWAP)**: `PrismAuction` tracks cumulative `epochNotional` (total USDC paid) and `epochVolume` (coupons filled). `vwap(epochId)` returns $\text{notional} \times 1e18 / \text{volume}$. Frontends read `clearingPrice` via `getEpochMarketData(epochId)` which returns the robust VWAP instead of a spoofable last clearing price.
 - **Slippage Protection**: Buyers pass `maxPrice` to ensure execution does not exceed their slippage threshold.
-- **Batch Auctions**: Sellers can call `createBatchAuctions` to bundle multiple quarters into a single transaction (e.g. *"sell my next 4 quarterly dividends"*).
-- **Zero Protocol Fees (MVP)**: This MVP implementation features **zero protocol fees**, providing 100% of proceeds directly to the seller.
-- **Yield Curve Analytics**: `getEpochMarketData(epochId)` reports `(lastClearingPrice, volume, activeAuctionCount)` on-chain, allowing frontends to construct live dividend term-structure curves.
+- **Batch Auctions**: Sellers can call `createBatchAuctions` to bundle multiple quarters into a single transaction.
+- **Zero Protocol Fees (MVP)**: This MVP implementation features zero protocol fees, providing 100% of proceeds directly to the seller.
 
 ---
 
-## 5. Mock vs. Real Disclaimer
+## 5. Dividend Sourcing: Testnet Mechanics vs. Production
 
 > [!IMPORTANT]
-> **Mock-vs-Real Architecture Transparency**
+> **Testnet Incentive Mechanism vs Production Reality**
 >
-> In this implementation, dividend distributions and corporate actions originate from a controlled mock source ([`MockDividendSource.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockDividendSource.sol)) controlled by an authorized operator.
->
-> **Reasoning**: We have not verified that any live tokenized stock currently deployed in production exposes an on-chain dividend distribution multiplier, record-date oracle, or push-based corporate action stream. Most live tokenized equity issuers (such as Backed bTokens or Ondo tokenized products) either retain dividends within off-chain legal wrappers, use rebasing mechanisms, or perform off-chain bank remittances.
->
-> In production on Monad, Prism would consume dividend distributions via an institutional oracle (such as Chainlink Functions, Pyth, or an API3 Airnode connected directly to DTCC / Bloomberg corporate action feeds) or an authorized broker-dealer custodian.
+> In this testnet deployment:
+> - Dividend announcements and execution rely on `MockDividendSource` and a permissionless `fundEpoch` function with a **30-day Funding Grace Period** (`FUNDING_GRACE = 30 days`).
+> - If an epoch passes its `exDate` without being funded, principal redemptions and recombines are blocked for up to 30 days. This creates an economic incentive on testnet for principal holders or issuers to pay the declared dividend to coupon holders or wait out the grace period.
+> - **This is a testnet incentive mechanism, not a replacement for real institutional dividend custody.**
+
+### Production Dividend Sourcing Architecture
+In a production deployment on Monad, dividend distribution cannot rely on voluntary principal escrow blocking. Instead, real-world tokenized equities require one of the following production architectures:
+1. **Custodian / Issuer Direct Push**:
+   The tokenized equity issuer (e.g. Backed, Dinari, Ondo) or an authorized broker-dealer custodian automatically pushes USDC directly to `PrismVault.fundEpoch` upon corporate action payment dates via DTCC-integrated clearing channels.
+2. **Rebasing / Yield-Accruing Collateral Adapter**:
+   The vault wraps the underlying equity in a rebasing or share-appreciating collateral adapter (e.g. ERC-4626). Dividend payments increase the adapter's underlying assets, allowing the vault contract itself to harvest and liquidate the yield directly into USDC distributions.
+3. **Decentralized Corporate Action Oracle**:
+   Independent oracle feeds (e.g. Chainlink Functions, Pyth, API3 Airnode) read DTCC / Bloomberg corporate action records and verify on-chain that dividend declarations, ex-dates, and per-share amounts match external regulatory filings.
 
 ---
 
-## 6. Invariants & Fuzz Testing
+## 6. Stateful Invariant Testing
 
-Prism enforces the following mathematical invariants, tested across 256 fuzzing runs:
+Prism runs stateful invariant testing via Foundry (`test/Invariants.t.sol`), configured with `runs = 256` and `depth = 50` (12,800 random actor interactions per run) across 3 distinct actors performing random deposits, recombines, funding, claims, auctions, buys, and time warps:
 
 1. **Collateral Conservation**:
    $$\text{MockStock.balanceOf}(\text{Vault}) \equiv \text{PrincipalToken.totalSupply}()$$
-2. **Coupon Supply Integrity**:
-   $$\forall e \in \text{Epochs}, \quad \text{EpochCoupon.totalSupply}(e) \equiv \text{Deposits}_{t < \text{exDate}} - \text{Burned}_{\text{claim}} - \text{Burned}_{\text{recombine}}$$
-3. **Non-Dilutive Recombination**: Reconstituting 1.0 share requires burning 1.0 Principal Token alongside active coupons with zero slippage or loss, substantiated by `test_recombine_beforeExDate`, `test_recombine_afterExDate`, and `testFuzz_depositRecombineInvariants`.
-4. **Auction Rounding Invariant**: In `PrismAuction.sol`, buyers never underpay for fractional coupons; `totalCost * 1e18 >= amount * price`, substantiated by `testFuzz_totalCostRoundingUp_andEscrowReconciliation`.
-5. **Reentrancy Immunity**: All state-modifying functions enforce OpenZeppelin `nonReentrant` and follow the Checks-Effects-Interactions pattern.
-6. **Token Isolation**: Minting and burning of both `PrincipalToken` and `EpochCoupon` are strictly locked behind immutable `onlyVault` access control.
+   (The vault holds 1:1 underlying collateral for every outstanding Principal Token across all redemption-free sequences).
+2. **Coupon Supply Bound**:
+   $$\forall e \in \text{Epochs}, \quad \text{EpochCoupon.totalSupply}(e) + \text{auctionEscrow}(e) \le \text{PrincipalToken.totalSupply}()$$
+   (Every outstanding Principal Token has at most 1 matching Epoch Coupon across circulating and escrowed balances).
+3. **Dividend Solvency Invariant**:
+   $$\text{MockUSDC.balanceOf}(\text{Vault}) \ge \sum \text{unclaimedFundedPayouts}$$
+   (The vault's USDC reserves are guaranteed to cover all claimable funded dividend liabilities).
+4. **Auction Escrow Accounting**:
+   $$\text{EpochCoupon.balanceOf}(\text{Auction}, e) \equiv \sum_{\text{active}} \text{remainingAmount}(e)$$
+   (Coupons escrowed in the auction contract exactly match the sum of active auction order volumes).
 
 ---
 
@@ -195,7 +223,7 @@ The script will:
 
 ## 9. Web Application & Design System
 
-The official prospectus landing page is located in [`web/`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/web).
+The official prospectus landing page is located in [`web/`](web).
 
 ### Design Philosophy
 - **Editorial Prospectus**: Rejects crypto-startup cliches (no blue, no purple neon, no gradients, no glassmorphism).
@@ -204,13 +232,107 @@ The official prospectus landing page is located in [`web/`](file:///d:/Study/Hac
 - **Performance**: Sub-60KB gzip total bundle weight, zero layout shift, responsive down to 360px.
 - **Accessibility**: WCAG AAA/AA color contrast, keyboard skip link (`#main-content`), 44px minimum touch targets, and full `prefers-reduced-motion` compliance.
 
-Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/docs/DESIGN_SYSTEM.md).
+Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
 
-### Running the Web App Locally
+### Run Locally
+
+Run the complete Prism stack locally on an Anvil chain with 3 commands:
+
 ```bash
-cd web
-npm install
-npm run dev     # Starts local Vite development server
-npm run build   # Typechecks and builds production distribution
-npm test        # Runs Vitest unit & integration test suites
+# 1. Install dependencies
+npm --prefix web install
+
+# 2. Deploy contracts and seed epochs to local Anvil (spawns Anvil if not running)
+bash script/DeployLocal.sh    # On Windows: powershell -File script/DeployLocal.ps1
+
+# 3. Start local web application
+npm --prefix web run dev
 ```
+
+Visit `http://localhost:5173/` for the prospectus and `http://localhost:5173/#/app` for the live trading application.
+
+To run the automated end-to-end integration lifecycle against local Anvil:
+```bash
+node web/scripts/e2e-local.mjs
+```
+
+### Local Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│             Prism Web Application (Vite)               │
+│                                                        │
+│  Route /#/     : Prospectus Landing Page               │
+│  Route /#/app  : Working Terminal (Chain ID 31337)     │
+│  - Split & Redeem (Deposit stock, Mint PT & EC)       │
+│  - Dutch Market (1s live decay price ticker, buys)    │
+│  - Dividend Curve (Term structure, implied yield)     │
+│  - Portfolio & Claim (Pro-rata dividend settlement)   │
+│  - Simulation Drawer (Faucet mint, declare dividend)  │
+└───────────────────────────┬────────────────────────────┘
+                            │ Viem RPC & Event Indexing
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│             Local Anvil Node (Chain 31337)             │
+│                                                        │
+│  Contracts:                                            │
+│  - PrismVault (Collateral lock, PT & EC minting)       │
+│  - PrismAuction (Dutch auctions, mulDiv ceil math)     │
+│  - PrincipalToken (ERC-20 capital leg)                 │
+│  - EpochCoupon (ERC-1155 dividend claim vouchers)      │
+│  - MockStock & MockUSDC (Test tokens)                  │
+│  - MockDividendSource (Oracle corporate action fixture)│
+└────────────────────────────────────────────────────────┘
+```
+
+- **Local Chain (Anvil 31337)**: Runs an instant, zero-cost Ethereum-compatible EVM node at `http://127.0.0.1:8545`.
+- **Event-Driven Indexing**: Instead of modifying immutable contracts to add gas-heavy getters, the frontend uses Viem's `publicClient.getLogs` over `AuctionCreated` and `EpochFunded` events to reconstruct market order books dynamically.
+- **In-Memory Actor Switcher**: Switch between Anvil's standard deterministic accounts (Deployer/Treasury, Alice, Bob) instantly to test bilateral trading, liquidity seeding, and dividend distributions with zero browser wallet setup required. Injected browser wallets (Rabby, MetaMask) remain fully supported.
+- **Strict Financial Settlement**: The Dutch auction uses `Math.mulDiv` rounding up (`Math.Rounding.Ceil`) so buyers never underpay for fractional coupons, verified by invariant and fuzz tests.
+
+---
+
+## 10. Application Screenshots
+
+### Prospectus Landing Page (Route `#/`)
+| Dark Mode (`ink`) | Light Mode (`paper`) |
+|---|---|
+| ![Landing Ink](docs/screenshots/landing-1440px-ink.png) | ![Landing Paper](docs/screenshots/landing-1440px-paper.png) |
+
+### Working Application (Route `#/app`)
+| 01. Split & Redeem (`ink`) | 02. Dutch Auction Market (`ink`) |
+|---|---|
+| ![Split & Redeem](docs/screenshots/app-split-1440px-ink.png) | ![Dutch Market](docs/screenshots/app-market-1440px-ink.png) |
+
+| 03. Dividend Yield Curve (`ink`) | Simulation Drawer Controls |
+|---|---|
+| ![Dividend Curve](docs/screenshots/app-curve-1440px-ink.png) | ![Anvil Controls Drawer](docs/screenshots/app-drawer-1440px-ink.png) |
+
+### Responsive Mobile (390px Viewport)
+| Mobile Prospectus | Mobile Portfolio & Claim |
+|---|---|
+| ![Mobile Landing](docs/screenshots/landing-390px-ink.png) | ![Mobile Portfolio](docs/screenshots/app-portfolio-390px-ink.png) |
+
+---
+
+## 11. Security & Known Limitations
+
+> [!CAUTION]
+> **Experimental Software — Unaudited**
+>
+> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (46 Foundry suites, 256 runs × 50 depths), but **have not undergone an independent third-party security audit**. Do not deposit real-world production capital without an institutional audit.
+
+1. **Single-Owner Protocol Trust**:
+   - `PrismVault` and `MockDividendSource` inherit OpenZeppelin's `Ownable2Step`.
+   - The contract owner can seal the epoch schedule, permanently disable demo mode, and declare corporate actions.
+   - *Production mitigation*: In any production deployment, owner keys must be transferred to a decentralized governance timelock or multi-signature threshold scheme (e.g. Safe with 3-of-5 signers).
+2. **Mock Dividend Source**:
+   - On testnet, dividends are declared via `MockDividendSource` and funded permissionlessly.
+   - *Production mitigation*: Real production tokenized equity distributions require an institutional push model (issuer/custodian automated deposit) or decentralized DTCC oracle feeds (Chainlink Functions, Pyth).
+3. **Unsupported Collateral Types**:
+   - `PrismVault.deposit` enforces strict `balanceAfter - balanceBefore == amount` transfer checks (`UnsupportedCollateral()`).
+   - Tokens with fee-on-transfer, rebasing balances (e.g. stETH), or internal share balance multipliers are strictly unsupported as raw collateral.
+   - *Production mitigation*: Rebasing or non-standard equity tokens must be wrapped into standardized ERC-4626 or dedicated vault collateral adapters prior to depositing.
+4. **Funding Grace Incentive Window**:
+   - Past-exDate unfunded epochs enforce a 30-day grace period (`FUNDING_GRACE = 30 days`) during which principal exits and recombinations are blocked. This serves as a testnet incentive mechanism rather than a replacement for legal dividend custody.
+

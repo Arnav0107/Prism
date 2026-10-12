@@ -41,7 +41,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         usdc = new MockUSDC();
         dividendSource = new MockDividendSource();
 
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource));
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 
@@ -71,30 +71,26 @@ contract PrismVaultTest is Test, IERC1155Receiver {
     }
 
     // --- IERC1155Receiver implementation ---
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] calldata,
-        uint256[] calldata,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155BatchReceived.selector;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     // --- Unit & Integration Tests ---
@@ -134,6 +130,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Dividend declared and epoch funded
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, dividendPerShare);
+        dividendSource.lockEvent(1);
 
         vm.prank(funder);
         vault.fundEpoch(1);
@@ -182,7 +179,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         vm.prank(alice);
         vault.deposit(depositAmount);
 
-        // Warp past epoch 1 exDate
+        // Warp past epoch 1 exDate but within 30-day grace period
         vm.warp(epoch1Ex + 1);
 
         // Alice sells epoch 1 coupon to Bob
@@ -191,7 +188,17 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         assertEq(coupon.balanceOf(alice, 1), 0);
 
-        // Recombine does NOT require epoch 1 coupon anymore
+        // Recombine while epoch 1 is unfunded during grace period reverts
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.EpochAwaitingFunding.selector, 1, epoch1Ex + 30 days));
+        vault.recombine(depositAmount);
+
+        // Once epoch 1 is funded, recombine succeeds and skips funded epoch 1
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
+        vm.prank(funder);
+        vault.fundEpoch(1);
+
         uint256 aliceStockBefore = stock.balanceOf(alice);
         vm.prank(alice);
         vault.recombine(depositAmount);
@@ -201,8 +208,11 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         assertEq(coupon.balanceOf(alice, 2), 0, "Coupon 2 not burned");
         assertEq(coupon.balanceOf(alice, 3), 0, "Coupon 3 not burned");
 
-        // Bob still holds epoch 1 coupon
+        // Bob still holds epoch 1 coupon and can claim his dividend
         assertEq(coupon.balanceOf(bob, 1), depositAmount, "Bob still holds coupon 1");
+        vm.prank(bob);
+        vault.claim(1, depositAmount);
+        assertEq(usdc.balanceOf(bob), 100e6, "Bob received dividend payout");
     }
 
     function test_redeemPrincipal_afterAllEpochsExpire() public {
@@ -213,13 +223,11 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Attempting redeem before all epochs expire must revert
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(PrismVault.FutureEpochsRemain.selector, epoch3Ex, block.timestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.FutureEpochsRemain.selector, epoch3Ex, block.timestamp));
         vault.redeemPrincipal(depositAmount);
 
-        // Warp past epoch 3 exDate
-        vm.warp(epoch3Ex + 1);
+        // Warp past epoch 3 exDate and 30-day grace period
+        vm.warp(epoch3Ex + 30 days + 1);
 
         // Now principal can be redeemed without needing any coupons
         uint256 aliceStockBefore = stock.balanceOf(alice);
@@ -237,25 +245,21 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Declare a SPLIT corporate action instead of DIVIDEND
         dividendSource.declareEvent(1, IDividendSource.ActionType.SPLIT, 2e18);
+        dividendSource.lockEvent(1);
 
         vm.prank(funder);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.NonDividendActionType.selector,
-                IDividendSource.ActionType.SPLIT
-            )
+            abi.encodeWithSelector(PrismVault.NonDividendActionType.selector, IDividendSource.ActionType.SPLIT)
         );
         vault.fundEpoch(1);
 
         // Declare OTHER corporate action for epoch 2
         dividendSource.declareEvent(2, IDividendSource.ActionType.OTHER, 1e18);
+        dividendSource.lockEvent(2);
 
         vm.prank(funder);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.NonDividendActionType.selector,
-                IDividendSource.ActionType.OTHER
-            )
+            abi.encodeWithSelector(PrismVault.NonDividendActionType.selector, IDividendSource.ActionType.OTHER)
         );
         vault.fundEpoch(2);
     }
@@ -266,6 +270,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         vault.deposit(depositAmount);
 
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
 
         vm.prank(funder);
         vault.fundEpoch(1);
@@ -313,14 +318,12 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
     // --- Fuzz Invariant Tests ---
 
-    function testFuzz_depositRecombineInvariants(
-        uint256 depositAmount,
-        uint256 recombineAmount,
-        uint256 warpOffset
-    ) public {
+    function testFuzz_depositRecombineInvariants(uint256 depositAmount, uint256 recombineAmount, uint256 warpOffset)
+        public
+    {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
         recombineAmount = bound(recombineAmount, 0, depositAmount);
-        warpOffset = bound(warpOffset, 0, 120 days);
+        warpOffset = bound(warpOffset, 0, 29 days);
 
         // Mint sufficient stock for alice
         stock.mint(alice, depositAmount);
@@ -399,6 +402,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Declare and fund epoch 1
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, dividendPerShare);
+        dividendSource.lockEvent(1);
 
         // Mint funder enough USDC
         uint256 neededPayout = (initialCoupon1Supply * dividendPerShare) / 1e18;
@@ -444,6 +448,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // 2. Owner declares dividend and funds epoch 1 while block.timestamp < exDate
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, dividendPerShare);
+        dividendSource.lockEvent(1);
         vm.prank(funder);
         vault.fundEpoch(1);
 
@@ -482,17 +487,11 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         vault.deposit(100e18);
 
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
 
         // block.timestamp < epoch1Ex reverts when demoMode is false
         vm.prank(funder);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.ExDateNotReached.selector,
-                1,
-                epoch1Ex,
-                block.timestamp
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.ExDateNotReached.selector, 1, epoch1Ex, block.timestamp));
         vault.fundEpoch(1);
 
         // Warp to exDate -> now succeeds
@@ -509,6 +508,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Declare and fund epoch 1 before exDate
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
         vm.prank(funder);
         vault.fundEpoch(1);
 
@@ -531,18 +531,21 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Fund epoch 1
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
         vm.prank(funder);
         vault.fundEpoch(1);
         assertTrue(vault.hasFutureEpochs(), "Epochs 2 and 3 are still live");
 
         // Fund epoch 2
         dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(2);
         vm.prank(funder);
         vault.fundEpoch(2);
         assertTrue(vault.hasFutureEpochs(), "Epoch 3 is still live");
 
         // Fund epoch 3
         dividendSource.declareEvent(3, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(3);
         vm.prank(funder);
         vault.fundEpoch(3);
         assertFalse(vault.hasFutureEpochs(), "No live epochs should remain");
@@ -580,6 +583,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Fund epoch 1
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, dividendPerShare);
+        dividendSource.lockEvent(1);
         uint256 neededPayout = (coupon.totalSupply(1) * dividendPerShare) / 1e18;
         usdc.mint(funder, neededPayout + 1e6);
         vm.prank(funder);
@@ -622,6 +626,4 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         );
     }
 }
-
-
 

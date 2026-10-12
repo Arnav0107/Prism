@@ -21,6 +21,8 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
     /// @notice Precision scalar matching 1 whole share / coupon (18 decimals).
     uint256 public constant COUPON_PRECISION = 1e18;
+    /// @notice Minimum fill size (0.001 coupon) unless taking full auction remainder.
+    uint256 public constant MIN_FILL = 1e15;
 
     struct Auction {
         address seller;
@@ -41,8 +43,8 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     uint256 public nextAuctionId = 1;
     mapping(uint256 => Auction) public auctions;
 
-    // Per-epoch market analytics
-    mapping(uint256 => uint256) public lastClearingPrice;
+    // Per-epoch market analytics (volume-weighted average price tracking)
+    mapping(uint256 => uint256) public epochNotional;
     mapping(uint256 => uint256) public epochVolume;
     mapping(uint256 => uint256) public activeAuctionCount;
 
@@ -68,10 +70,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     );
 
     event AuctionCancelled(
-        uint256 indexed auctionId,
-        address indexed seller,
-        uint256 indexed epochId,
-        uint256 refundAmount
+        uint256 indexed auctionId, address indexed seller, uint256 indexed epochId, uint256 refundAmount
     );
 
     error ZeroAddress();
@@ -87,12 +86,9 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     error SlippageExceeded(uint256 currentPrice, uint256 maxPrice);
     error InsufficientAuctionLiquidity(uint256 requested, uint256 available);
     error OnlySeller();
+    error FillBelowMinimum(uint256 amount, uint256 minFill);
 
-    constructor(
-        address epochCoupon_,
-        address mockUSDC_,
-        address prismVault_
-    ) {
+    constructor(address epochCoupon_, address mockUSDC_, address prismVault_) {
         if (epochCoupon_ == address(0) || mockUSDC_ == address(0) || prismVault_ == address(0)) {
             revert ZeroAddress();
         }
@@ -110,13 +106,11 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
      * @param duration Duration in seconds over which the price linearly decays.
      * @return auctionId Unique auction identifier.
      */
-    function createAuction(
-        uint256 epochId,
-        uint256 amount,
-        uint256 startPrice,
-        uint256 floorPrice,
-        uint256 duration
-    ) external nonReentrant returns (uint256 auctionId) {
+    function createAuction(uint256 epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration)
+        external
+        nonReentrant
+        returns (uint256 auctionId)
+    {
         auctionId = _createAuction(epochId, amount, startPrice, floorPrice, duration);
     }
 
@@ -137,23 +131,13 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         uint256 duration
     ) external nonReentrant returns (uint256[] memory auctionIds) {
         uint256 total = epochIds.length;
-        if (
-            total != amounts.length ||
-            total != startPrices.length ||
-            total != floorPrices.length
-        ) {
+        if (total != amounts.length || total != startPrices.length || total != floorPrices.length) {
             revert ArrayLengthMismatch();
         }
 
         auctionIds = new uint256[](total);
         for (uint256 i = 0; i < total; ++i) {
-            auctionIds[i] = _createAuction(
-                epochIds[i],
-                amounts[i],
-                startPrices[i],
-                floorPrices[i],
-                duration
-            );
+            auctionIds[i] = _createAuction(epochIds[i], amounts[i], startPrices[i], floorPrices[i], duration);
         }
     }
 
@@ -186,14 +170,13 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
      * @param amount Amount of coupons to buy (partial fills supported).
      * @param maxPrice Maximum acceptable price per 1e18 coupons (slippage guard).
      */
-    function buy(
-        uint256 auctionId,
-        uint256 amount,
-        uint256 maxPrice
-    ) external nonReentrant {
+    function buy(uint256 auctionId, uint256 amount, uint256 maxPrice) external nonReentrant {
         Auction storage auction = auctions[auctionId];
         if (!auction.active) revert AuctionNotActive(auctionId);
         if (amount == 0) revert ZeroAmount();
+        if (amount < MIN_FILL && amount != auction.amount) {
+            revert FillBelowMinimum(amount, MIN_FILL);
+        }
         if (amount > auction.amount) {
             revert InsufficientAuctionLiquidity(amount, auction.amount);
         }
@@ -210,7 +193,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         uint256 totalCost = Math.mulDiv(amount, price, COUPON_PRECISION, Math.Rounding.Ceil);
 
         auction.amount -= amount;
-        lastClearingPrice[auction.epochId] = price;
+        epochNotional[auction.epochId] += totalCost;
         epochVolume[auction.epochId] += amount;
 
         if (auction.amount == 0) {
@@ -224,15 +207,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
         epochCoupon.safeTransferFrom(address(this), msg.sender, auction.epochId, amount, "");
 
-        emit Purchase(
-            auctionId,
-            msg.sender,
-            auction.seller,
-            auction.epochId,
-            amount,
-            price,
-            totalCost
-        );
+        emit Purchase(auctionId, msg.sender, auction.seller, auction.epochId, amount, price, totalCost);
     }
 
     /**
@@ -255,22 +230,37 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     }
 
     /**
+     * @notice Computes volume-weighted average price (VWAP) for an epoch.
+     * @param epochId Target epoch identifier.
+     * @return vwapPrice Volume-weighted clearing price in MockUSDC base units per 1e18 coupons.
+     */
+    function vwap(uint256 epochId) public view returns (uint256 vwapPrice) {
+        uint256 vol = epochVolume[epochId];
+        if (vol == 0) return 0;
+        return Math.mulDiv(epochNotional[epochId], COUPON_PRECISION, vol);
+    }
+
+    /**
+     * @notice Backward-compatible view returning VWAP for an epoch.
+     * @param epochId Target epoch identifier.
+     */
+    function lastClearingPrice(uint256 epochId) external view returns (uint256) {
+        return vwap(epochId);
+    }
+
+    /**
      * @notice Exposes market depth and pricing metrics for a given epoch.
      * @param epochId Target epoch identifier.
-     * @return clearingPrice Latest clearing price for this epoch.
+     * @return clearingPrice Volume-weighted average price (VWAP) for this epoch.
      * @return volume Cumulative coupons purchased.
      * @return activeCount Number of active auctions currently open.
      */
     function getEpochMarketData(uint256 epochId)
         external
         view
-        returns (
-            uint256 clearingPrice,
-            uint256 volume,
-            uint256 activeCount
-        )
+        returns (uint256 clearingPrice, uint256 volume, uint256 activeCount)
     {
-        return (lastClearingPrice[epochId], epochVolume[epochId], activeAuctionCount[epochId]);
+        return (vwap(epochId), epochVolume[epochId], activeAuctionCount[epochId]);
     }
 
     /**
@@ -283,13 +273,10 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
     // --- Internal Helpers ---
 
-    function _createAuction(
-        uint256 epochId,
-        uint256 amount,
-        uint256 startPrice,
-        uint256 floorPrice,
-        uint256 duration
-    ) internal returns (uint256 auctionId) {
+    function _createAuction(uint256 epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration)
+        internal
+        returns (uint256 auctionId)
+    {
         if (amount == 0) revert ZeroAmount();
         if (startPrice < floorPrice || floorPrice == 0) revert InvalidPrice();
         if (duration == 0) revert InvalidDuration();
@@ -321,15 +308,6 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
         activeAuctionCount[epochId]++;
 
-        emit AuctionCreated(
-            auctionId,
-            msg.sender,
-            epochId,
-            amount,
-            startPrice,
-            floorPrice,
-            duration,
-            block.timestamp
-        );
+        emit AuctionCreated(auctionId, msg.sender, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
     }
 }

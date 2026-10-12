@@ -33,17 +33,15 @@ export const Hero: React.FC = () => {
             <div className="prism-hero__actions">
               <Button
                 variant="primary"
-                onClick={() => scrollToSection('mechanics')}
+                href="#/app"
               >
-                Read Prospectus
+                Launch App &rarr;
               </Button>
               <Button
                 variant="secondary"
-                href="https://github.com/Arnav0107/Prism"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={() => scrollToSection('mechanics')}
               >
-                View Smart Contracts
+                Read Prospectus
               </Button>
             </div>
           </div>

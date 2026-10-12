@@ -1,0 +1,45 @@
+.prism-app-root {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.prism-app-main {
+  flex: 1;
+  padding: var(--space-8) var(--space-4) var(--space-16) var(--space-4);
+}
+
+.prism-app-container {
+  max-width: var(--max-width-wide);
+  margin: 0 auto;
+}
+
+.prism-app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-16) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
+}
+
+.prism-app-loading__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-vermilion);
+  animation: pulseDot 1s infinite alternate;
+}
+
+@keyframes pulseDot {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}

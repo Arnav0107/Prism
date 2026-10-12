@@ -1,0 +1,12 @@
+{
+  "chainId": 31337,
+  "contracts": {
+    "MockStock": "0x4c5859f0f772848b2d91f1d83e2fe57935348029",
+    "MockUSDC": "0x1291be112d480055dafd8a610b7d1e203891c274",
+    "MockDividendSource": "0x5f3f1dbd7b74c6b46e8c44f98792a1daf8d69154",
+    "PrismVault": "0xb7278a61aa25c888815afc32ad3cc52ff24fe575",
+    "PrincipalToken": "0x9fa5072032b7a7dcc49533401cec1c47bfcf350d",
+    "EpochCoupon": "0x37b37064d97eadacc4d7a0cbc673b5c2932b673c",
+    "PrismAuction": "0xcd8a1c3ba11cf5ecfa6267617243239504a98d90"
+  }
+}

@@ -1,0 +1,67 @@
+.prism-risk-panel {
+  margin-top: var(--space-8);
+  border: 1px solid var(--color-border);
+  background: var(--color-card-bg);
+  padding: var(--space-4);
+  font-size: var(--text-2xs);
+  line-height: 1.6;
+}
+
+.prism-risk-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.prism-risk-panel__title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prism-risk-panel__tag {
+  color: var(--color-vermilion);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.prism-risk-panel__title {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.prism-risk-panel__toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.prism-risk-panel__toggle-btn:hover {
+  color: var(--color-text);
+}
+
+.prism-risk-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prism-risk-panel__item {
+  color: var(--color-text-secondary);
+}
+
+.prism-risk-panel__bullet {
+  color: var(--color-text);
+}
+
+.prism-risk-panel code {
+  color: var(--color-vermilion);
+}

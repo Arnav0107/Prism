@@ -41,7 +41,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         usdc = new MockUSDC();
         dividendSource = new MockDividendSource();
 
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource));
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 
@@ -75,37 +75,33 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
     }
 
     // --- IERC1155Receiver ---
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] calldata,
-        uint256[] calldata,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155BatchReceived.selector;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     // --- Price Decay Tests ---
 
     function test_priceAtT0_equalsStart() public {
         uint256 startPrice = 1_000_000; // 1.00 USDC
-        uint256 floorPrice = 200_000;   // 0.20 USDC
+        uint256 floorPrice = 200_000; // 0.20 USDC
         uint256 duration = 1_000;
 
         vm.prank(seller);
@@ -204,9 +200,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
 
         // Buyer specifies maxPrice of 800_000 (lower than live price)
         vm.prank(buyer1);
-        vm.expectRevert(
-            abi.encodeWithSelector(PrismAuction.SlippageExceeded.selector, livePrice, 800_000)
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.SlippageExceeded.selector, livePrice, 800_000));
         auction.buy(auctionId, 10e18, 800_000);
     }
 
@@ -272,13 +266,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         floorPrices[2] = 1_500_000;
 
         vm.prank(seller);
-        uint256[] memory ids = auction.createBatchAuctions(
-            epochIds,
-            amounts,
-            startPrices,
-            floorPrices,
-            3600
-        );
+        uint256[] memory ids = auction.createBatchAuctions(epochIds, amounts, startPrices, floorPrices, 3600);
 
         assertEq(ids.length, 3, "Should return 3 auction IDs");
         assertEq(ids[0], 1);
@@ -327,18 +315,12 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         vm.warp(epoch1Ex + 1);
 
         vm.prank(seller);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismAuction.EpochPastExDate.selector,
-                1,
-                epoch1Ex,
-                epoch1Ex + 1
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.EpochPastExDate.selector, 1, epoch1Ex, epoch1Ex + 1));
         auction.createAuction(1, 50e18, 1e6, 0.5e6, 1000);
 
         // Declare and fund epoch 2
         dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(2);
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);
@@ -370,13 +352,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         fillAmount = bound(fillAmount, 1e18, auctionAmount);
 
         vm.prank(seller);
-        uint256 auctionId = auction.createAuction(
-            3,
-            auctionAmount,
-            startPrice,
-            floorPrice,
-            duration
-        );
+        uint256 auctionId = auction.createAuction(3, auctionAmount, startPrice, floorPrice, duration);
 
         // Advance clock & buy
         vm.warp(T0 + warpTime);
@@ -387,11 +363,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         _verifyRemainingAndCancel(auctionId, auctionAmount - fillAmount);
     }
 
-    function _executeAndVerifyFill(
-        uint256 auctionId,
-        uint256 fillAmount,
-        uint256 price
-    ) internal {
+    function _executeAndVerifyFill(uint256 auctionId, uint256 fillAmount, uint256 price) internal {
         uint256 expectedCost = Math.mulDiv(fillAmount, price, 1e18, Math.Rounding.Ceil);
         usdc.mint(buyer1, expectedCost);
 
@@ -415,11 +387,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
             vm.prank(seller);
             auction.cancel(auctionId);
 
-            assertEq(
-                coupon.balanceOf(seller, 3) - sellerCouponsBefore,
-                expectedRemaining,
-                "Cancel refund mismatch"
-            );
+            assertEq(coupon.balanceOf(seller, 3) - sellerCouponsBefore, expectedRemaining, "Cancel refund mismatch");
             assertEq(coupon.balanceOf(address(auction), 3), 0, "Escrow not empty after cancel");
         }
     }
@@ -430,6 +398,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
 
         // Fund epoch 1
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);
@@ -459,14 +428,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
 
         // buy() must revert with EpochPastExDate
         vm.prank(buyer1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismAuction.EpochPastExDate.selector,
-                1,
-                epoch1Ex,
-                epoch1Ex + 1
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.EpochPastExDate.selector, 1, epoch1Ex, epoch1Ex + 1));
         auction.buy(auctionId, 10e18, type(uint256).max);
 
         // cancel() must still work and refund seller's escrowed coupons
@@ -481,13 +443,19 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         vm.prank(seller);
         uint256 auctionId = auction.createAuction(1, 100e18, 2_000_000, 1_000_000, 1_000);
 
-        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
-
-        // Buyer purchases 1 wei of coupon at price 2 USDC (2_000_000 base units)
-        // With rounding up: totalCost must be >= 1 base unit of USDC
-        // On unhardened code: totalCost = (1 * 2_000_000) / 1e18 = 0
+        // Buyer attempting to buy 1 wei of coupon when remainder is 100e18 reverts with FillBelowMinimum (M1)
         vm.prank(buyer1);
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.FillBelowMinimum.selector, 1, auction.MIN_FILL()));
         auction.buy(auctionId, 1, type(uint256).max);
+
+        // When the auction remainder is dust (1 wei), buying the full remainder is permitted
+        // and Math.mulDiv Rounding.Ceil guarantees the seller receives >= 1 base unit of USDC
+        vm.prank(seller);
+        uint256 dustAuctionId = auction.createAuction(1, 1, 2_000_000, 1_000_000, 1_000);
+
+        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
+        vm.prank(buyer1);
+        auction.buy(dustAuctionId, 1, type(uint256).max);
 
         uint256 sellerUsdcGained = usdc.balanceOf(seller) - sellerUsdcBefore;
         assertGt(sellerUsdcGained, 0, "Seller received 0 USDC for sold coupons (buyer got free tokens)");
@@ -501,21 +469,15 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         uint256 warpTime,
         uint256 buyAmount
     ) public {
-        auctionAmount = bound(auctionAmount, 1, 1_000e18);
+        auctionAmount = bound(auctionAmount, 1e15, 1_000e18);
         startPrice = bound(startPrice, 1, 100_000e6);
         floorPrice = bound(floorPrice, 1, startPrice);
         duration = bound(duration, 10, 86400);
         warpTime = bound(warpTime, 0, duration * 2);
-        buyAmount = bound(buyAmount, 1, auctionAmount);
+        buyAmount = bound(buyAmount, 1e15, auctionAmount);
 
         vm.prank(seller);
-        uint256 auctionId = auction.createAuction(
-            2,
-            auctionAmount,
-            startPrice,
-            floorPrice,
-            duration
-        );
+        uint256 auctionId = auction.createAuction(2, auctionAmount, startPrice, floorPrice, duration);
 
         vm.warp(T0 + warpTime);
         uint256 price = auction.currentPrice(auctionId);
@@ -535,10 +497,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         // Invariant: totalCost * COUPON_PRECISION >= amount * price for all inputs
         assertEq(sellerProceeds, expectedCost, "Seller proceeds must equal rounded-up totalCost");
         assertEq(buyerCost, expectedCost, "Buyer paid rounded-up totalCost");
-        assertTrue(
-            sellerProceeds * 1e18 >= buyAmount * price,
-            "Rounding up invariant violated: buyer underpaid"
-        );
+        assertTrue(sellerProceeds * 1e18 >= buyAmount * price, "Rounding up invariant violated: buyer underpaid");
 
         // Escrow reconciliation: remaining balance in auction contract equals (auctionAmount - buyAmount)
         uint256 remaining = auctionAmount - buyAmount;
@@ -550,11 +509,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
             uint256 sellerCouponsBefore = coupon.balanceOf(seller, 2);
             vm.prank(seller);
             auction.cancel(auctionId);
-            assertEq(
-                coupon.balanceOf(seller, 2) - sellerCouponsBefore,
-                remaining,
-                "Cancel refund mismatch"
-            );
+            assertEq(coupon.balanceOf(seller, 2) - sellerCouponsBefore, remaining, "Cancel refund mismatch");
             assertEq(coupon.balanceOf(address(auction), 2), 0, "Escrow not empty after cancel");
         }
     }

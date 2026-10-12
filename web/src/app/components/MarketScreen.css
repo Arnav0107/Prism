@@ -1,0 +1,205 @@
+.prism-market-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prism-market-screen__layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--space-6);
+}
+
+.prism-market-screen__right-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prism-empty-state {
+  border: 1px dashed var(--color-border);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.prism-empty-state__tag {
+  color: var(--color-vermilion);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.prism-auction-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.prism-lot-card {
+  border: 1px solid var(--color-border);
+  background: var(--color-card-bg);
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.prism-lot-card:hover {
+  border-color: var(--color-border-subtle);
+  background: var(--color-hover-bg);
+}
+
+.prism-lot-card--selected {
+  border-color: var(--color-vermilion);
+  background: var(--color-surface);
+}
+
+.prism-lot-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.prism-lot-card__id {
+  font-size: var(--text-2xs);
+  color: var(--color-vermilion);
+  font-weight: 600;
+}
+
+.prism-lot-card__epoch {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.prism-lot-card__price-block {
+  margin-bottom: var(--space-3);
+}
+
+.prism-lot-card__price-label {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.prism-lot-card__price-val {
+  font-size: var(--text-xl);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.prism-lot-card__price-val small {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.prism-lot-card__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-2xs);
+}
+
+.prism-lot-card__stat-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+}
+
+.prism-lot-card__stat-row--subtle {
+  color: var(--color-text-muted);
+}
+
+.prism-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--color-border-subtle);
+}
+
+.prism-progress-bar__fill {
+  height: 100%;
+  background: var(--color-vermilion);
+  transition: width 0.2s ease;
+}
+
+.prism-lot-card__footer {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.prism-lot-card__cancel-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-vermilion);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.prism-lot-card__cancel-btn:hover {
+  text-decoration: underline;
+}
+
+.prism-active-lot-banner {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border-subtle);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-2xs);
+}
+
+.prism-inline-link {
+  background: transparent;
+  border: none;
+  color: var(--color-vermilion);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  padding: 0;
+}
+
+.prism-tabs-sub {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-2);
+}
+
+.prism-tabs-sub__btn {
+  background: transparent;
+  border: none;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.prism-tabs-sub__btn--active {
+  color: var(--color-vermilion);
+  border-bottom: 2px solid var(--color-vermilion);
+  font-weight: 600;
+}
+
+.prism-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .prism-market-screen__layout {
+    grid-template-columns: 1fr;
+  }
+}

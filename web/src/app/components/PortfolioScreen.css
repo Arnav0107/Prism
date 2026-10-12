@@ -1,0 +1,84 @@
+.prism-portfolio-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prism-portfolio-screen__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+.prism-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prism-summary-card__label {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.prism-summary-card__value {
+  font-size: var(--text-xl);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.prism-summary-card__value small {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.prism-summary-card__value--highlight {
+  color: var(--color-vermilion);
+}
+
+.prism-summary-card__sub {
+  font-size: var(--text-2xs);
+  color: var(--color-text-secondary);
+}
+
+.prism-payout-val {
+  color: var(--color-vermilion);
+  font-weight: 600;
+}
+
+.prism-btn--sm {
+  padding: 4px 10px;
+  font-size: var(--text-2xs);
+  width: auto;
+  min-width: 110px;
+}
+
+.prism-tag--live {
+  border-color: var(--color-vermilion);
+  color: var(--color-vermilion);
+}
+
+.prism-tag--funded {
+  border-color: var(--color-text-secondary);
+  background: var(--color-card-bg);
+  color: var(--color-text);
+}
+
+.prism-tag--settled {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.prism-tag--expired {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .prism-portfolio-screen__summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

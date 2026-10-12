@@ -217,10 +217,12 @@ contract RegressionTest is Test, IERC1155Receiver {
         // usdcPerShare = 1.5e6 ($1.50 USDC per 1e18 share)
         uint256 usdcPerShare = 1.5e6;
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, usdcPerShare);
+        dividendSource.lockEvent(1);
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare) =
+        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare, bool locked) =
             dividendSource.getEvent(1);
         assertTrue(declared);
+        assertTrue(locked);
         assertEq(uint256(actionType), uint256(IDividendSource.ActionType.DIVIDEND));
         assertEq(declaredUsdcPerShare, 1.5e6);
 
@@ -237,5 +239,263 @@ contract RegressionTest is Test, IERC1155Receiver {
         vm.prank(alice);
         vault.claim(1, 100e18);
         assertEq(usdc.balanceOf(alice) - aliceUsdcBefore, expectedPayout, "Alice receives 150 USDC");
+    }
+
+    // =========================================================================
+    // Regression C -> H3: Funding incentives & 30-day grace period
+    // =========================================================================
+    function test_regression_C_H3() public {
+        vault.createEpoch(T0 + 30 days, T0 + 35 days);
+        vault.createEpoch(T0 + 100 days, T0 + 105 days);
+
+        vm.prank(alice);
+        vault.deposit(100e18);
+
+        // Warp past epoch 1 exDate but inside FUNDING_GRACE (30 days)
+        vm.warp(T0 + 35 days);
+
+        // Check fundingStatus view
+        (bool live, bool awaitingFunding, uint256 graceEndsAt) = vault.fundingStatus(1);
+        assertFalse(live, "Epoch 1 is past exDate so not live");
+        assertTrue(awaitingFunding, "Epoch 1 should be awaiting funding");
+        assertEq(graceEndsAt, T0 + 60 days, "Grace period ends 30 days after exDate");
+
+        // Alice attempts recombine while epoch 1 is unfunded -> blocked!
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(PrismVault.EpochAwaitingFunding.selector, 1, T0 + 60 days)
+        );
+        vault.recombine(100e18);
+
+        // Attempting redeemPrincipal while awaiting funding or live epochs exist is also blocked
+        vm.prank(alice);
+        vm.expectRevert();
+        vault.redeemPrincipal(100e18);
+
+        // Permissionless funding: any funder declares, locks, and funds epoch 1
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 2e6);
+        dividendSource.lockEvent(1);
+        vm.prank(funder);
+        vault.fundEpoch(1);
+
+        // After funding, awaitingFunding is false
+        (, awaitingFunding,) = vault.fundingStatus(1);
+        assertFalse(awaitingFunding, "Epoch 1 is no longer awaiting funding");
+
+        // Recombine now succeeds because epoch 1 is funded and skipped!
+        uint256 stockBefore = stock.balanceOf(alice);
+        vm.prank(alice);
+        vault.recombine(100e18);
+        assertEq(stock.balanceOf(alice) - stockBefore, 100e18, "Collateral returned to Alice");
+
+        // Alice (or whoever holds coupon 1) gets paid in the funded path
+        vm.prank(alice);
+        vault.claim(1, 100e18);
+        assertEq(usdc.balanceOf(alice), 200e6, "Coupon holder paid full dividend");
+
+        // Test grace expiry path: fresh vault where grace period lapses without funding
+        PrismVault graceVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        uint256 curTime = block.timestamp;
+        graceVault.createEpoch(curTime + 10 days, curTime + 15 days);
+        vm.prank(bob);
+        stock.approve(address(graceVault), type(uint256).max);
+        vm.prank(bob);
+        graceVault.deposit(50e18);
+
+        // Warp past exDate + 30 days grace period
+        vm.warp(curTime + 41 days);
+        (, bool graceAwaiting,) = graceVault.fundingStatus(1);
+        assertFalse(graceAwaiting, "Grace period has elapsed");
+
+        // Principal redemption is now allowed after grace period expires
+        uint256 bobStockBefore = stock.balanceOf(bob);
+        vm.prank(bob);
+        graceVault.redeemPrincipal(50e18);
+        assertEq(stock.balanceOf(bob) - bobStockBefore, 50e18, "Bob redeemed principal after grace");
+    }
+
+    // =========================================================================
+    // Regression D -> H4: Declaration correction and locking before funding
+    // =========================================================================
+    function test_regression_D_H4() public {
+        vault.createEpoch(T0 + 30 days, T0 + 35 days);
+        vm.prank(alice);
+        vault.deposit(100e18);
+
+        // 1. Owner accidentally declares a SPLIT action
+        dividendSource.declareEvent(1, IDividendSource.ActionType.SPLIT, 0);
+
+        // Funding before event is locked reverts with EventNotLocked
+        vm.prank(funder);
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.EventNotLocked.selector, 1));
+        vault.fundEpoch(1);
+
+        // 2. Owner corrects the declaration to DIVIDEND before locking (not bricked!)
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        (bool decl, IDividendSource.ActionType act, uint256 amt, bool lck) = dividendSource.getEvent(1);
+        assertTrue(decl);
+        assertFalse(lck);
+        assertEq(uint256(act), uint256(IDividendSource.ActionType.DIVIDEND));
+        assertEq(amt, 1e6);
+
+        // 3. Owner locks the event
+        dividendSource.lockEvent(1);
+        (,,, lck) = dividendSource.getEvent(1);
+        assertTrue(lck, "Event must be locked");
+
+        // Locked declaration is immutable: attempting to re-declare or re-lock reverts
+        vm.expectRevert(abi.encodeWithSelector(MockDividendSource.EventIsLocked.selector, 1));
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 2e6);
+
+        vm.expectRevert(abi.encodeWithSelector(MockDividendSource.EventIsLocked.selector, 1));
+        dividendSource.lockEvent(1);
+
+        // 4. Funding now succeeds
+        vm.prank(funder);
+        vault.fundEpoch(1);
+        (,, bool funded,,) = vault.epochs(1);
+        assertTrue(funded, "Epoch 1 successfully funded with corrected declaration");
+    }
+
+    // =========================================================================
+    // Regression F -> M1: MIN_FILL enforcement & spoof-resistant VWAP
+    // =========================================================================
+    function test_regression_F_M1() public {
+        vault.createEpoch(T0 + 30 days, T0 + 35 days);
+        vm.prank(alice);
+        vault.deposit(100e18);
+
+        PrismAuction auction = new PrismAuction(address(coupon), address(usdc), address(vault));
+        vm.prank(alice);
+        coupon.setApprovalForAll(address(auction), true);
+
+        // Alice creates auction for 50e18 coupons
+        vm.prank(alice);
+        uint256 auctionId = auction.createAuction(1, 50e18, 2e6, 1e6, 1000);
+
+        // Buyer attempting to fill dust (< MIN_FILL = 1e15) while remainder is 50e18 reverts
+        usdc.mint(bob, 10_000e6);
+        vm.prank(bob);
+        usdc.approve(address(auction), type(uint256).max);
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(PrismAuction.FillBelowMinimum.selector, 1e12, auction.MIN_FILL())
+        );
+        auction.buy(auctionId, 1e12, type(uint256).max);
+
+        // Legitimate buy of 10e18 coupons at 2 USDC (2e6)
+        vm.prank(bob);
+        auction.buy(auctionId, 10e18, type(uint256).max);
+
+        (uint256 vwap1, uint256 vol1,) = auction.getEpochMarketData(1);
+        assertEq(vol1, 10e18);
+        assertEq(vwap1, 2e6, "Initial VWAP equals purchase price");
+
+        // Warp time so price decays to 1.5e6
+        vm.warp(T0 + 500);
+
+        // Second buyer buys 10e18 at 1.5e6
+        address charlie = makeAddr("charlie");
+        usdc.mint(charlie, 10_000e6);
+        vm.prank(charlie);
+        usdc.approve(address(auction), type(uint256).max);
+
+        vm.prank(charlie);
+        auction.buy(auctionId, 10e18, type(uint256).max);
+
+        // Total volume = 20e18. Total notional = (10 * 2) + (10 * 1.5) = 35 USDC (35e6)
+        // VWAP = 35e6 * 1e18 / 20e18 = 1.75e6
+        (uint256 vwap2, uint256 vol2,) = auction.getEpochMarketData(1);
+        assertEq(vol2, 20e18);
+        assertEq(vwap2, 1_750_000, "VWAP must be volume weighted");
+
+        // A small wash trade at MIN_FILL = 1e15 cannot move VWAP materially
+        vm.prank(bob);
+        auction.buy(auctionId, 1e15, type(uint256).max);
+        (uint256 vwapAfterWash,,) = auction.getEpochMarketData(1);
+        // VWAP change is negligible (< 0.01%)
+        assertApproxEqAbs(vwapAfterWash, 1_750_000, 100, "Dust fill cannot move VWAP materially");
+    }
+
+    // =========================================================================
+    // Regression G -> M2: Bounded loops and gas limits
+    // =========================================================================
+    function test_regression_G_M2() public {
+        PrismVault maxVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        for (uint256 i = 1; i <= 16; ++i) {
+            maxVault.createEpoch(T0 + (i * 20 days), T0 + (i * 20 days) + 5 days);
+        }
+
+        // Test deposit gas bound
+        vm.prank(alice);
+        stock.approve(address(maxVault), 100e18);
+        uint256 g0 = gasleft();
+        vm.prank(alice);
+        maxVault.deposit(100e18);
+        uint256 depositGas = g0 - gasleft();
+        assertLt(depositGas, 1_500_000, "Deposit with 16 epochs must stay under 1.5M gas");
+
+        // Test recombine gas bound
+        g0 = gasleft();
+        vm.prank(alice);
+        maxVault.recombine(50e18);
+        uint256 recombineGas = g0 - gasleft();
+        assertLt(recombineGas, 1_500_000, "Recombine with 16 epochs must stay under 1.5M gas");
+
+        // Test hasFutureEpochs loop gas bound
+        g0 = gasleft();
+        bool hasFut = maxVault.hasFutureEpochs();
+        uint256 viewGas = g0 - gasleft();
+        assertTrue(hasFut);
+        assertLt(viewGas, 100_000, "View loop must be minimal gas");
+    }
+
+    // =========================================================================
+    // Regression M3: Fee-on-transfer / Unsupported collateral rejection
+    // =========================================================================
+    function test_regression_M3() public {
+        MockFeeOnTransferStock feeStock = new MockFeeOnTransferStock();
+        PrismVault fotVault = new PrismVault(address(feeStock), address(usdc), address(dividendSource), true);
+        fotVault.createEpoch(block.timestamp + 30 days, block.timestamp + 35 days);
+
+        feeStock.mint(address(this), 1_000e18);
+        feeStock.approve(address(fotVault), type(uint256).max);
+
+        // Attempting to deposit fee-on-transfer collateral must revert with UnsupportedCollateral()
+        vm.expectRevert(PrismVault.UnsupportedCollateral.selector);
+        fotVault.deposit(100e18);
+    }
+
+    // =========================================================================
+    // Regression M5: Ownable2Step two-step ownership handover
+    // =========================================================================
+    function test_regression_M5() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        // Transfer vault ownership: pending until accepted
+        vault.transferOwnership(newAdmin);
+        assertEq(vault.owner(), address(this), "Owner should not change immediately");
+        assertEq(vault.pendingOwner(), newAdmin);
+
+        vm.prank(newAdmin);
+        vault.acceptOwnership();
+        assertEq(vault.owner(), newAdmin, "New owner must be set after acceptOwnership");
+
+        // Same two-step transfer for MockDividendSource
+        dividendSource.transferOwnership(newAdmin);
+        assertEq(dividendSource.owner(), address(this));
+        vm.prank(newAdmin);
+        dividendSource.acceptOwnership();
+        assertEq(dividendSource.owner(), newAdmin);
+    }
+}
+
+contract MockFeeOnTransferStock is MockStock {
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        // Take a 5% fee on transfer
+        uint256 fee = (amount * 5) / 100;
+        uint256 netAmount = amount - fee;
+        return super.transferFrom(from, to, netAmount);
     }
 }

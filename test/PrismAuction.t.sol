@@ -339,6 +339,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
 
         // Declare and fund epoch 2
         dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(2);
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);
@@ -430,6 +431,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
 
         // Fund epoch 1
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);
@@ -481,13 +483,21 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         vm.prank(seller);
         uint256 auctionId = auction.createAuction(1, 100e18, 2_000_000, 1_000_000, 1_000);
 
-        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
-
-        // Buyer purchases 1 wei of coupon at price 2 USDC (2_000_000 base units)
-        // With rounding up: totalCost must be >= 1 base unit of USDC
-        // On unhardened code: totalCost = (1 * 2_000_000) / 1e18 = 0
+        // Buyer attempting to buy 1 wei of coupon when remainder is 100e18 reverts with FillBelowMinimum (M1)
         vm.prank(buyer1);
+        vm.expectRevert(
+            abi.encodeWithSelector(PrismAuction.FillBelowMinimum.selector, 1, auction.MIN_FILL())
+        );
         auction.buy(auctionId, 1, type(uint256).max);
+
+        // When the auction remainder is dust (1 wei), buying the full remainder is permitted
+        // and Math.mulDiv Rounding.Ceil guarantees the seller receives >= 1 base unit of USDC
+        vm.prank(seller);
+        uint256 dustAuctionId = auction.createAuction(1, 1, 2_000_000, 1_000_000, 1_000);
+
+        uint256 sellerUsdcBefore = usdc.balanceOf(seller);
+        vm.prank(buyer1);
+        auction.buy(dustAuctionId, 1, type(uint256).max);
 
         uint256 sellerUsdcGained = usdc.balanceOf(seller) - sellerUsdcBefore;
         assertGt(sellerUsdcGained, 0, "Seller received 0 USDC for sold coupons (buyer got free tokens)");
@@ -501,12 +511,12 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         uint256 warpTime,
         uint256 buyAmount
     ) public {
-        auctionAmount = bound(auctionAmount, 1, 1_000e18);
+        auctionAmount = bound(auctionAmount, 1e15, 1_000e18);
         startPrice = bound(startPrice, 1, 100_000e6);
         floorPrice = bound(floorPrice, 1, startPrice);
         duration = bound(duration, 10, 86400);
         warpTime = bound(warpTime, 0, duration * 2);
-        buyAmount = bound(buyAmount, 1, auctionAmount);
+        buyAmount = bound(buyAmount, 1e15, auctionAmount);
 
         vm.prank(seller);
         uint256 auctionId = auction.createAuction(

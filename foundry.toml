@@ -16,3 +16,7 @@ remappings = [
 
 [fuzz]
 runs = 256
+
+[invariant]
+runs = 256
+depth = 50

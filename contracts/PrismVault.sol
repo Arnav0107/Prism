@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {PrincipalToken} from "./PrincipalToken.sol";
@@ -15,7 +16,7 @@ import {IDividendSource} from "./IDividendSource.sol";
  * @notice Splits tokenized stock collateral into Principal Tokens (capital exposure)
  *         and per-epoch Epoch Coupons (dividend distribution exposure).
  */
-contract PrismVault is Ownable, ReentrancyGuard {
+contract PrismVault is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Precision scaler for dividend amounts per whole share (18 decimals).
@@ -39,6 +40,8 @@ contract PrismVault is Ownable, ReentrancyGuard {
     uint256 public constant MAX_EPOCHS = 16;
     /// @notice Maximum horizon into the future for an epoch exDate (400 days).
     uint256 public constant MAX_EPOCH_HORIZON = 400 days;
+    /// @notice Grace period during which unfunded past-exDate epochs block principal exit.
+    uint256 public constant FUNDING_GRACE = 30 days;
 
     /// @notice Demo mode flag allowing early funding before exDate for live demonstrations.
     bool public demoMode;
@@ -57,6 +60,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     event PrincipalRedeemed(address indexed user, uint256 amount);
     event DemoModeSet(bool enabled);
     event VaultSealed();
+    event FundingGraceActive(uint256 indexed epochId, uint256 graceEndsAt);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -75,6 +79,9 @@ contract PrismVault is Ownable, ReentrancyGuard {
     error MaxEpochsReached();
     error EpochHorizonExceeded(uint256 exDate, uint256 maxExDate);
     error CannotEnableDemoMode();
+    error UnsupportedCollateral();
+    error EventNotLocked(uint256 epochId);
+    error EpochAwaitingFunding(uint256 epochId, uint256 graceEndsAt);
 
     constructor(
         address stock_,
@@ -145,6 +152,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     /**
      * @notice Splits collateral stock into PrincipalToken and EpochCoupons for live epochs.
      * @dev Seals the vault epoch schedule on first deposit if not already sealed.
+     *      Measures actual received balance to reject fee-on-transfer or rebasing tokens.
      * @param amount Amount of underlying stock to deposit.
      */
     function deposit(uint256 amount) external nonReentrant {
@@ -155,7 +163,11 @@ contract PrismVault is Ownable, ReentrancyGuard {
             emit VaultSealed();
         }
 
+        uint256 balanceBefore = mockStock.balanceOf(address(this));
         mockStock.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = mockStock.balanceOf(address(this)) - balanceBefore;
+        if (received != amount) revert UnsupportedCollateral();
+
         principalToken.mint(msg.sender, amount);
 
         uint256 total = epochCount;
@@ -170,6 +182,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
     /**
      * @notice Funds an epoch with declared dividend payouts in USDC, marking it CLAIMABLE.
+     * @dev Corporate action event must be finalized and locked by the dividend source.
      * @param epochId Target epoch identifier.
      */
     function fundEpoch(uint256 epochId) external nonReentrant {
@@ -182,10 +195,11 @@ contract PrismVault is Ownable, ReentrancyGuard {
             revert ExDateNotReached(epochId, epoch.exDate, block.timestamp);
         }
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 usdcPerShare) =
+        (bool declared, IDividendSource.ActionType actionType, uint256 usdcPerShare, bool locked) =
             dividendSource.getEvent(epochId);
 
         if (!declared) revert DividendNotDeclared(epochId);
+        if (!locked) revert EventNotLocked(epochId);
         if (actionType != IDividendSource.ActionType.DIVIDEND) revert NonDividendActionType(actionType);
 
         uint256 currentSupply = epochCoupon.totalSupply(epochId);
@@ -232,7 +246,8 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
     /**
      * @notice Recombines PrincipalToken and unexpired, unfunded EpochCoupons to retrieve collateral stock.
-     * @dev Epochs already funded or past exDate are not required.
+     * @dev Blocked if any past-exDate epoch is unfunded and within the 30-day FUNDING_GRACE period.
+     *      Epochs already funded or past exDate (post-grace) are skipped.
      * @param amount Amount of stock to reconstitute.
      */
     function recombine(uint256 amount) external nonReentrant {
@@ -240,6 +255,12 @@ contract PrismVault is Ownable, ReentrancyGuard {
         if (principalToken.balanceOf(msg.sender) < amount) revert InsufficientBalance();
 
         uint256 total = epochCount;
+        for (uint256 i = 1; i <= total; ++i) {
+            if (_isAwaitingFunding(i)) {
+                revert EpochAwaitingFunding(i, epochs[i].exDate + FUNDING_GRACE);
+            }
+        }
+
         for (uint256 i = 1; i <= total; ++i) {
             if (_isLive(i)) {
                 if (epochCoupon.balanceOf(msg.sender, i) < amount) revert InsufficientBalance();
@@ -255,6 +276,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
     /**
      * @notice Redeems stock collateral using PrincipalToken when no live future epochs remain.
+     * @dev Blocked if any past-exDate epoch is unfunded and within the 30-day FUNDING_GRACE period.
      * @param amount Amount of principal to redeem.
      */
     function redeemPrincipal(uint256 amount) external nonReentrant {
@@ -262,6 +284,14 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
         (bool hasLive, uint256 latestLiveExDate) = _getLiveStatus();
         if (hasLive) revert FutureEpochsRemain(latestLiveExDate, block.timestamp);
+
+        uint256 total = epochCount;
+        for (uint256 i = 1; i <= total; ++i) {
+            if (_isAwaitingFunding(i)) {
+                revert EpochAwaitingFunding(i, epochs[i].exDate + FUNDING_GRACE);
+            }
+        }
+
         if (principalToken.balanceOf(msg.sender) < amount) revert InsufficientBalance();
 
         principalToken.burn(msg.sender, amount);
@@ -279,6 +309,29 @@ contract PrismVault is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Returns live status, awaiting funding status, and grace expiry timestamp for an epoch.
+     * @param epochId Target epoch identifier.
+     * @return live True if epoch is unfunded and before exDate.
+     * @return awaitingFunding True if epoch is unfunded, past exDate, and within FUNDING_GRACE.
+     * @return graceEndsAt Timestamp at which the funding grace period expires.
+     */
+    function fundingStatus(uint256 epochId)
+        external
+        view
+        returns (
+            bool live,
+            bool awaitingFunding,
+            uint256 graceEndsAt
+        )
+    {
+        if (epochId == 0 || epochId > epochCount) revert EpochDoesNotExist(epochId);
+        EpochInfo storage epoch = epochs[epochId];
+        graceEndsAt = epoch.exDate + FUNDING_GRACE;
+        live = !epoch.funded && block.timestamp < epoch.exDate;
+        awaitingFunding = !epoch.funded && block.timestamp >= epoch.exDate && block.timestamp < graceEndsAt;
+    }
+
+    /**
      * @notice Returns epoch metadata and funding state.
      * @param epochId Target epoch identifier.
      */
@@ -292,6 +345,15 @@ contract PrismVault is Ownable, ReentrancyGuard {
      */
     function _isLive(uint256 epochId) internal view returns (bool) {
         return !epochs[epochId].funded && epochs[epochId].exDate > block.timestamp;
+    }
+
+    /**
+     * @notice Internal helper checking if an epoch is awaiting dividend funding within grace.
+     * @param epochId Target epoch identifier.
+     */
+    function _isAwaitingFunding(uint256 epochId) internal view returns (bool) {
+        EpochInfo storage ep = epochs[epochId];
+        return !ep.funded && block.timestamp >= ep.exDate && block.timestamp < ep.exDate + FUNDING_GRACE;
     }
 
     /**

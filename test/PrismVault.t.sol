@@ -71,30 +71,26 @@ contract PrismVaultTest is Test, IERC1155Receiver {
     }
 
     // --- IERC1155Receiver implementation ---
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] calldata,
-        uint256[] calldata,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155BatchReceived.selector;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     // --- Unit & Integration Tests ---
@@ -194,13 +190,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Recombine while epoch 1 is unfunded during grace period reverts
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.EpochAwaitingFunding.selector,
-                1,
-                epoch1Ex + 30 days
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.EpochAwaitingFunding.selector, 1, epoch1Ex + 30 days));
         vault.recombine(depositAmount);
 
         // Once epoch 1 is funded, recombine succeeds and skips funded epoch 1
@@ -233,9 +223,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // Attempting redeem before all epochs expire must revert
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(PrismVault.FutureEpochsRemain.selector, epoch3Ex, block.timestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.FutureEpochsRemain.selector, epoch3Ex, block.timestamp));
         vault.redeemPrincipal(depositAmount);
 
         // Warp past epoch 3 exDate and 30-day grace period
@@ -261,10 +249,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         vm.prank(funder);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.NonDividendActionType.selector,
-                IDividendSource.ActionType.SPLIT
-            )
+            abi.encodeWithSelector(PrismVault.NonDividendActionType.selector, IDividendSource.ActionType.SPLIT)
         );
         vault.fundEpoch(1);
 
@@ -274,10 +259,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         vm.prank(funder);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.NonDividendActionType.selector,
-                IDividendSource.ActionType.OTHER
-            )
+            abi.encodeWithSelector(PrismVault.NonDividendActionType.selector, IDividendSource.ActionType.OTHER)
         );
         vault.fundEpoch(2);
     }
@@ -336,11 +318,9 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
     // --- Fuzz Invariant Tests ---
 
-    function testFuzz_depositRecombineInvariants(
-        uint256 depositAmount,
-        uint256 recombineAmount,
-        uint256 warpOffset
-    ) public {
+    function testFuzz_depositRecombineInvariants(uint256 depositAmount, uint256 recombineAmount, uint256 warpOffset)
+        public
+    {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
         recombineAmount = bound(recombineAmount, 0, depositAmount);
         warpOffset = bound(warpOffset, 0, 29 days);
@@ -511,14 +491,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
 
         // block.timestamp < epoch1Ex reverts when demoMode is false
         vm.prank(funder);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.ExDateNotReached.selector,
-                1,
-                epoch1Ex,
-                block.timestamp
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.ExDateNotReached.selector, 1, epoch1Ex, block.timestamp));
         vault.fundEpoch(1);
 
         // Warp to exDate -> now succeeds
@@ -653,6 +626,4 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         );
     }
 }
-
-
 

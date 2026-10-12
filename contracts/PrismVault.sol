@@ -83,12 +83,7 @@ contract PrismVault is Ownable2Step, ReentrancyGuard {
     error EventNotLocked(uint256 epochId);
     error EpochAwaitingFunding(uint256 epochId, uint256 graceEndsAt);
 
-    constructor(
-        address stock_,
-        address usdc_,
-        address dividendSource_,
-        bool demoMode_
-    ) Ownable(msg.sender) {
+    constructor(address stock_, address usdc_, address dividendSource_, bool demoMode_) Ownable(msg.sender) {
         if (stock_ == address(0) || usdc_ == address(0) || dividendSource_ == address(0)) {
             revert ZeroAddress();
         }
@@ -98,7 +93,7 @@ contract PrismVault is Ownable2Step, ReentrancyGuard {
         demoMode = demoMode_;
 
         principalToken = new PrincipalToken(address(this));
-        epochCoupon = new EpochCoupon(address(this), "https://prism.finance/api/epoch/{id}.json");
+        epochCoupon = new EpochCoupon(address(this), "");
     }
 
     /**
@@ -138,13 +133,8 @@ contract PrismVault is Ownable2Step, ReentrancyGuard {
         if (epochCount > 0 && exDate <= epochs[epochCount].exDate) revert ExDateNotIncreasing();
 
         uint256 newEpochId = ++epochCount;
-        epochs[newEpochId] = EpochInfo({
-            exDate: exDate,
-            payDate: payDate,
-            funded: false,
-            totalFundedUSDC: 0,
-            fundedSupply: 0
-        });
+        epochs[newEpochId] =
+            EpochInfo({exDate: exDate, payDate: payDate, funded: false, totalFundedUSDC: 0, fundedSupply: 0});
 
         emit EpochCreated(newEpochId, exDate, payDate);
     }
@@ -318,13 +308,11 @@ contract PrismVault is Ownable2Step, ReentrancyGuard {
     function fundingStatus(uint256 epochId)
         external
         view
-        returns (
-            bool live,
-            bool awaitingFunding,
-            uint256 graceEndsAt
-        )
+        returns (bool live, bool awaitingFunding, uint256 graceEndsAt)
     {
-        if (epochId == 0 || epochId > epochCount) revert EpochDoesNotExist(epochId);
+        if (epochId == 0 || epochId > epochCount) {
+            revert EpochDoesNotExist(epochId);
+        }
         EpochInfo storage epoch = epochs[epochId];
         graceEndsAt = epoch.exDate + FUNDING_GRACE;
         live = !epoch.funded && block.timestamp < epoch.exDate;

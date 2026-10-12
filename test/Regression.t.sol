@@ -61,30 +61,26 @@ contract RegressionTest is Test, IERC1155Receiver {
     }
 
     // --- IERC1155Receiver implementation ---
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] calldata,
-        uint256[] calldata,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (bytes4)
+    {
         return this.onERC1155BatchReceived.selector;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     // =========================================================================
@@ -131,13 +127,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         PrismVault boundedVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
 
         // Cannot create epoch beyond MAX_EPOCH_HORIZON (400 days)
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.EpochHorizonExceeded.selector,
-                T0 + 401 days,
-                T0 + 400 days
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.EpochHorizonExceeded.selector, T0 + 401 days, T0 + 400 days));
         boundedVault.createEpoch(T0 + 401 days, T0 + 405 days);
 
         // Fill up to MAX_EPOCHS (16)
@@ -181,14 +171,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         vm.prank(funder);
         usdc.approve(address(prodVault), type(uint256).max);
         vm.prank(funder);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PrismVault.ExDateNotReached.selector,
-                1,
-                T0 + 30 days,
-                T0
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.ExDateNotReached.selector, 1, T0 + 30 days, T0));
         prodVault.fundEpoch(1);
 
         // Owner cannot re-enable demoMode
@@ -262,9 +245,7 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // Alice attempts recombine while epoch 1 is unfunded -> blocked!
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(PrismVault.EpochAwaitingFunding.selector, 1, T0 + 60 days)
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismVault.EpochAwaitingFunding.selector, 1, T0 + 60 days));
         vault.recombine(100e18);
 
         // Attempting redeemPrincipal while awaiting funding or live epochs exist is also blocked
@@ -379,9 +360,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         usdc.approve(address(auction), type(uint256).max);
 
         vm.prank(bob);
-        vm.expectRevert(
-            abi.encodeWithSelector(PrismAuction.FillBelowMinimum.selector, 1e12, auction.MIN_FILL())
-        );
+        vm.expectRevert(abi.encodeWithSelector(PrismAuction.FillBelowMinimum.selector, 1e12, auction.MIN_FILL()));
         auction.buy(auctionId, 1e12, type(uint256).max);
 
         // Legitimate buy of 10e18 coupons at 2 USDC (2e6)

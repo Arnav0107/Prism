@@ -19,11 +19,7 @@ interface IDividendSource {
         bool locked;
     }
 
-    event EventDeclared(
-        uint256 indexed epochId,
-        ActionType indexed actionType,
-        uint256 usdcPerShare
-    );
+    event EventDeclared(uint256 indexed epochId, ActionType indexed actionType, uint256 usdcPerShare);
 
     event EventLocked(uint256 indexed epochId);
 
@@ -33,11 +29,7 @@ interface IDividendSource {
      * @param actionType Classification of the corporate action (DIVIDEND, SPLIT, OTHER).
      * @param usdcPerShare Dividend amount in USDC base units (6 decimals) per 1 whole share (1e18 wei).
      */
-    function declareEvent(
-        uint256 epochId,
-        ActionType actionType,
-        uint256 usdcPerShare
-    ) external;
+    function declareEvent(uint256 epochId, ActionType actionType, uint256 usdcPerShare) external;
 
     /**
      * @notice Locks the corporate action event for a specified epoch, making it immutable.
@@ -56,10 +48,5 @@ interface IDividendSource {
     function getEvent(uint256 epochId)
         external
         view
-        returns (
-            bool declared,
-            ActionType actionType,
-            uint256 usdcPerShare,
-            bool locked
-        );
+        returns (bool declared, ActionType actionType, uint256 usdcPerShare, bool locked);
 }

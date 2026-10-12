@@ -51,11 +51,7 @@ contract DeployScript is Script {
         console.log("EpochCoupon deployed at:        ", ecAddress);
 
         // 3. Deploy PrismAuction
-        PrismAuction auction = new PrismAuction(
-            ecAddress,
-            address(usdc),
-            address(vault)
-        );
+        PrismAuction auction = new PrismAuction(ecAddress, address(usdc), address(vault));
         console.log("PrismAuction deployed at:       ", address(auction));
 
         // 4. Create 4 quarterly epochs before any deposit
@@ -73,11 +69,7 @@ contract DeployScript is Script {
         // 6. Declare and lock dividend corporate actions for demo epochs
         // Rate: 1.50 USDC (1_500_000 base units) per share
         for (uint256 i = 1; i <= 4; ++i) {
-            dividendSource.declareEvent(
-                i,
-                IDividendSource.ActionType.DIVIDEND,
-                1_500_000
-            );
+            dividendSource.declareEvent(i, IDividendSource.ActionType.DIVIDEND, 1_500_000);
             dividendSource.lockEvent(i);
             console.log("Declared and locked dividend for Epoch", i);
         }

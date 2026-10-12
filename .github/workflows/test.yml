@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
-    name: Foundry Tests
+  foundry:
+    name: Foundry Tests & Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -21,8 +21,37 @@ jobs:
       - name: Show Forge version
         run: forge --version
 
+      - name: Verify Code Formatting
+        run: forge fmt --check
+
       - name: Run Forge build
         run: forge build --sizes
 
       - name: Run Forge tests
         run: forge test -vvv
+
+  web:
+    name: Web App CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Run web unit tests
+        working-directory: web
+        run: npm test
+
+      - name: Build web application
+        working-directory: web
+        run: npm run build

@@ -8,6 +8,9 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
  * @title EpochCoupon
  * @notice ERC1155 multi-token coupon representing dividend entitlement per epoch.
  * @dev Mint and burn capabilities are strictly restricted to the PrismVault.
+ *      URI is initialized empty ("") because EpochCoupons represent financial yield claims
+ *      whose lifecycle (funding status, claimable USDC amount, exDate) is queried directly
+ *      from PrismVault rather than via static off-chain JSON metadata.
  */
 contract EpochCoupon is ERC1155Supply {
     error OnlyVault();
@@ -31,11 +34,7 @@ contract EpochCoupon is ERC1155Supply {
      * @param epochId Target epoch ID.
      * @param amount Amount of coupons to mint.
      */
-    function mint(
-        address to,
-        uint256 epochId,
-        uint256 amount
-    ) external onlyVault {
+    function mint(address to, uint256 epochId, uint256 amount) external onlyVault {
         _mint(to, epochId, amount, "");
     }
 
@@ -45,11 +44,7 @@ contract EpochCoupon is ERC1155Supply {
      * @param epochId Target epoch ID.
      * @param amount Amount of coupons to burn.
      */
-    function burn(
-        address from,
-        uint256 epochId,
-        uint256 amount
-    ) external onlyVault {
+    function burn(address from, uint256 epochId, uint256 amount) external onlyVault {
         _burn(from, epochId, amount);
     }
 }

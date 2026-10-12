@@ -25,20 +25,12 @@ contract MockDividendSource is IDividendSource, Ownable2Step {
      * @param actionType Classification of corporate action.
      * @param usdcPerShare Dividend amount in USDC base units (6 decimals) per 1 whole share (1e18 wei).
      */
-    function declareEvent(
-        uint256 epochId,
-        ActionType actionType,
-        uint256 usdcPerShare
-    ) external onlyOwner {
+    function declareEvent(uint256 epochId, ActionType actionType, uint256 usdcPerShare) external onlyOwner {
         if (epochId == 0) revert InvalidEpochId();
         if (_actions[epochId].locked) revert EventIsLocked(epochId);
 
-        _actions[epochId] = CorporateAction({
-            declared: true,
-            actionType: actionType,
-            usdcPerShare: usdcPerShare,
-            locked: false
-        });
+        _actions[epochId] =
+            CorporateAction({declared: true, actionType: actionType, usdcPerShare: usdcPerShare, locked: false});
 
         emit EventDeclared(epochId, actionType, usdcPerShare);
     }
@@ -67,12 +59,7 @@ contract MockDividendSource is IDividendSource, Ownable2Step {
     function getEvent(uint256 epochId)
         external
         view
-        returns (
-            bool declared,
-            ActionType actionType,
-            uint256 usdcPerShare,
-            bool locked
-        )
+        returns (bool declared, ActionType actionType, uint256 usdcPerShare, bool locked)
     {
         CorporateAction memory action = _actions[epochId];
         return (action.declared, action.actionType, action.usdcPerShare, action.locked);

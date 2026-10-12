@@ -16,18 +16,18 @@
 
 ## 2. Architecture & Contracts
 
-All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts):
+All contracts reside in [`contracts/`](contracts):
 
 | Contract | Standard | Description |
 |---|---|---|
-| [`MockStock.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockStock.sol) | ERC-20 (18 dec) | Test collateral representing tokenized equity (with public mint). |
-| [`MockUSDC.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockUSDC.sol) | ERC-20 (6 dec) | Test stablecoin representing dividend cashflow distributions. |
-| [`IDividendSource.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/IDividendSource.sol) | Interface | Declares corporate actions (`DIVIDEND`, `SPLIT`, `OTHER`) and payout rates. |
-| [`MockDividendSource.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/MockDividendSource.sol) | Ownable | Owner-controlled corporate action registry with strict action typing. |
-| [`PrincipalToken.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrincipalToken.sol) | ERC-20 (18 dec) | Capital exposure leg. Mint and burn restricted exclusively to `PrismVault`. |
-| [`EpochCoupon.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/EpochCoupon.sol) | ERC-1155 (Supply) | Per-epoch dividend coupons (`id = epochId`). Mint/burn restricted to `PrismVault`. |
-| [`PrismVault.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismVault.sol) | Vault Core | Coordinates deposits, epoch funding, claims, recombines, and principal redemptions. |
-| [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol) | Marketplace | Dutch auction marketplace for continuous EpochCoupon price discovery and liquidity. |
+| [`MockStock.sol`](contracts/MockStock.sol) | ERC-20 (18 dec) | Test collateral representing tokenized equity (with public mint). |
+| [`MockUSDC.sol`](contracts/MockUSDC.sol) | ERC-20 (6 dec) | Test stablecoin representing dividend cashflow distributions. |
+| [`IDividendSource.sol`](contracts/IDividendSource.sol) | Interface | Declares corporate actions (`DIVIDEND`, `SPLIT`, `OTHER`) and payout rates. |
+| [`MockDividendSource.sol`](contracts/MockDividendSource.sol) | Ownable | Owner-controlled corporate action registry with strict action typing. |
+| [`PrincipalToken.sol`](contracts/PrincipalToken.sol) | ERC-20 (18 dec) | Capital exposure leg. Mint and burn restricted exclusively to `PrismVault`. |
+| [`EpochCoupon.sol`](contracts/EpochCoupon.sol) | ERC-1155 (Supply) | Per-epoch dividend coupons (`id = epochId`). Mint/burn restricted to `PrismVault`. |
+| [`PrismVault.sol`](contracts/PrismVault.sol) | Vault Core | Coordinates deposits, epoch funding, claims, recombines, and principal redemptions. |
+| [`PrismAuction.sol`](contracts/PrismAuction.sol) | Marketplace | Dutch auction marketplace for continuous EpochCoupon price discovery and liquidity. |
 
 ---
 
@@ -112,7 +112,7 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 The **Prism Dividend Dutch Auction** provides continuous on-chain price discovery and secondary liquidity for coupon holders wishing to sell upcoming dividend rights before the ex-dividend date.
 
 ### Core Auction Mechanics
-- **Escrow**: Sellers deposit `EpochCoupon` into [`PrismAuction.sol`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/contracts/PrismAuction.sol).
+- **Escrow**: Sellers deposit `EpochCoupon` into [`PrismAuction.sol`](contracts/PrismAuction.sol).
 - **Linear Decay**: Prices decay continuously per second from `startPrice` to `floorPrice` over `duration` seconds:
   $$P(t) = \text{startPrice} - \frac{(\text{startPrice} - \text{floorPrice}) \times \Delta t}{\text{duration}}$$
   Once $t \ge \text{duration}$, the price clamps deterministically at `floorPrice`.
@@ -223,7 +223,7 @@ The script will:
 
 ## 9. Web Application & Design System
 
-The official prospectus landing page is located in [`web/`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/web).
+The official prospectus landing page is located in [`web/`](web).
 
 ### Design Philosophy
 - **Editorial Prospectus**: Rejects crypto-startup cliches (no blue, no purple neon, no gradients, no glassmorphism).
@@ -232,7 +232,7 @@ The official prospectus landing page is located in [`web/`](file:///d:/Study/Hac
 - **Performance**: Sub-60KB gzip total bundle weight, zero layout shift, responsive down to 360px.
 - **Accessibility**: WCAG AAA/AA color contrast, keyboard skip link (`#main-content`), 44px minimum touch targets, and full `prefers-reduced-motion` compliance.
 
-Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](file:///d:/Study/Hackthon/Metropolis(Monad)/prism/docs/DESIGN_SYSTEM.md).
+Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
 
 ### Run Locally
 
@@ -312,4 +312,27 @@ node web/scripts/e2e-local.mjs
 | Mobile Prospectus | Mobile Portfolio & Claim |
 |---|---|
 | ![Mobile Landing](docs/screenshots/landing-390px-ink.png) | ![Mobile Portfolio](docs/screenshots/app-portfolio-390px-ink.png) |
+
+---
+
+## 11. Security & Known Limitations
+
+> [!CAUTION]
+> **Experimental Software — Unaudited**
+>
+> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (46 Foundry suites, 256 runs × 50 depths), but **have not undergone an independent third-party security audit**. Do not deposit real-world production capital without an institutional audit.
+
+1. **Single-Owner Protocol Trust**:
+   - `PrismVault` and `MockDividendSource` inherit OpenZeppelin's `Ownable2Step`.
+   - The contract owner can seal the epoch schedule, permanently disable demo mode, and declare corporate actions.
+   - *Production mitigation*: In any production deployment, owner keys must be transferred to a decentralized governance timelock or multi-signature threshold scheme (e.g. Safe with 3-of-5 signers).
+2. **Mock Dividend Source**:
+   - On testnet, dividends are declared via `MockDividendSource` and funded permissionlessly.
+   - *Production mitigation*: Real production tokenized equity distributions require an institutional push model (issuer/custodian automated deposit) or decentralized DTCC oracle feeds (Chainlink Functions, Pyth).
+3. **Unsupported Collateral Types**:
+   - `PrismVault.deposit` enforces strict `balanceAfter - balanceBefore == amount` transfer checks (`UnsupportedCollateral()`).
+   - Tokens with fee-on-transfer, rebasing balances (e.g. stETH), or internal share balance multipliers are strictly unsupported as raw collateral.
+   - *Production mitigation*: Rebasing or non-standard equity tokens must be wrapped into standardized ERC-4626 or dedicated vault collateral adapters prior to depositing.
+4. **Funding Grace Incentive Window**:
+   - Past-exDate unfunded epochs enforce a 30-day grace period (`FUNDING_GRACE = 30 days`) during which principal exits and recombinations are blocked. This serves as a testnet incentive mechanism rather than a replacement for legal dividend custody.
 

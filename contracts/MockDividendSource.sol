@@ -20,12 +20,12 @@ contract MockDividendSource is IDividendSource, Ownable {
      * @notice Declare a corporate action event for a specified epoch (Owner only).
      * @param epochId Target epoch identifier.
      * @param actionType Classification of corporate action.
-     * @param amountPerShare Dividend amount per whole share (scaled by 1e18, 6 decimals for USDC).
+     * @param usdcPerShare Dividend amount in USDC base units (6 decimals) per 1 whole share (1e18 wei).
      */
     function declareEvent(
         uint256 epochId,
         ActionType actionType,
-        uint256 amountPerShare
+        uint256 usdcPerShare
     ) external onlyOwner {
         if (epochId == 0) revert InvalidEpochId();
         if (_actions[epochId].declared) revert EventAlreadyDeclared(epochId);
@@ -33,10 +33,10 @@ contract MockDividendSource is IDividendSource, Ownable {
         _actions[epochId] = CorporateAction({
             declared: true,
             actionType: actionType,
-            amountPerShare: amountPerShare
+            usdcPerShare: usdcPerShare
         });
 
-        emit EventDeclared(epochId, actionType, amountPerShare);
+        emit EventDeclared(epochId, actionType, usdcPerShare);
     }
 
     /**
@@ -44,7 +44,7 @@ contract MockDividendSource is IDividendSource, Ownable {
      * @param epochId Target epoch identifier.
      * @return declared True if an event has been declared.
      * @return actionType The action type enum.
-     * @return amountPerShare Declared distribution per share.
+     * @return usdcPerShare Declared distribution per share in USDC base units (6 decimals) per 1 whole share.
      */
     function getEvent(uint256 epochId)
         external
@@ -52,10 +52,10 @@ contract MockDividendSource is IDividendSource, Ownable {
         returns (
             bool declared,
             ActionType actionType,
-            uint256 amountPerShare
+            uint256 usdcPerShare
         )
     {
         CorporateAction memory action = _actions[epochId];
-        return (action.declared, action.actionType, action.amountPerShare);
+        return (action.declared, action.actionType, action.usdcPerShare);
     }
 }

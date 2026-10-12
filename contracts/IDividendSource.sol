@@ -15,25 +15,25 @@ interface IDividendSource {
     struct CorporateAction {
         bool declared;
         ActionType actionType;
-        uint256 amountPerShare;
+        uint256 usdcPerShare;
     }
 
     event EventDeclared(
         uint256 indexed epochId,
         ActionType indexed actionType,
-        uint256 amountPerShare
+        uint256 usdcPerShare
     );
 
     /**
      * @notice Declare a corporate action event for a specified epoch.
      * @param epochId Target epoch identifier.
      * @param actionType Classification of the corporate action (DIVIDEND, SPLIT, OTHER).
-     * @param amountPerShare Dividend amount per 1 whole share (scaled by 1e18, MockUSDC decimals).
+     * @param usdcPerShare Dividend amount in USDC base units (6 decimals) per 1 whole share (1e18 wei).
      */
     function declareEvent(
         uint256 epochId,
         ActionType actionType,
-        uint256 amountPerShare
+        uint256 usdcPerShare
     ) external;
 
     /**
@@ -41,7 +41,7 @@ interface IDividendSource {
      * @param epochId Target epoch identifier.
      * @return declared True if an event has been declared for this epoch.
      * @return actionType The action type classification.
-     * @return amountPerShare The declared distribution amount per share.
+     * @return usdcPerShare The declared distribution amount in USDC base units (6 decimals) per 1 whole share (1e18 wei).
      */
     function getEvent(uint256 epochId)
         external
@@ -49,6 +49,6 @@ interface IDividendSource {
         returns (
             bool declared,
             ActionType actionType,
-            uint256 amountPerShare
+            uint256 usdcPerShare
         );
 }

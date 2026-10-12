@@ -35,8 +35,16 @@ contract PrismVault is Ownable, ReentrancyGuard {
     PrincipalToken public immutable principalToken;
     EpochCoupon public immutable epochCoupon;
 
+    /// @notice Maximum number of distribution epochs permitted.
+    uint256 public constant MAX_EPOCHS = 16;
+    /// @notice Maximum horizon into the future for an epoch exDate (400 days).
+    uint256 public constant MAX_EPOCH_HORIZON = 400 days;
+
     /// @notice Demo mode flag allowing early funding before exDate for live demonstrations.
-    bool public demoMode = true;
+    bool public demoMode;
+
+    /// @notice Sealing flag indicating the epoch distribution schedule is locked. Fixed before first deposit.
+    bool public isSealed;
 
     uint256 public epochCount;
     mapping(uint256 => EpochInfo) public epochs;
@@ -48,6 +56,7 @@ contract PrismVault is Ownable, ReentrancyGuard {
     event Recombined(address indexed user, uint256 amount);
     event PrincipalRedeemed(address indexed user, uint256 amount);
     event DemoModeSet(bool enabled);
+    event VaultSealed();
 
     error ZeroAddress();
     error ZeroAmount();
@@ -62,11 +71,16 @@ contract PrismVault is Ownable, ReentrancyGuard {
     error InsufficientBalance();
     error FutureEpochsRemain(uint256 latestExDate, uint256 currentTimestamp);
     error ExDateNotReached(uint256 epochId, uint256 exDate, uint256 currentTimestamp);
+    error EpochsSealed();
+    error MaxEpochsReached();
+    error EpochHorizonExceeded(uint256 exDate, uint256 maxExDate);
+    error CannotEnableDemoMode();
 
     constructor(
         address stock_,
         address usdc_,
-        address dividendSource_
+        address dividendSource_,
+        bool demoMode_
     ) Ownable(msg.sender) {
         if (stock_ == address(0) || usdc_ == address(0) || dividendSource_ == address(0)) {
             revert ZeroAddress();
@@ -74,28 +88,45 @@ contract PrismVault is Ownable, ReentrancyGuard {
         mockStock = IERC20(stock_);
         mockUSDC = IERC20(usdc_);
         dividendSource = IDividendSource(dividendSource_);
+        demoMode = demoMode_;
 
         principalToken = new PrincipalToken(address(this));
         epochCoupon = new EpochCoupon(address(this), "https://prism.finance/api/epoch/{id}.json");
     }
 
     /**
-     * @notice Toggle demo mode (Owner only). In production (demoMode=false),
-     *         epochs cannot be funded before their exDate.
-     * @param enabled New demoMode setting.
+     * @notice Disable demo mode (Owner only). In production or once turned off,
+     *         demoMode cannot be re-enabled.
+     * @param enabled Must be false. Reverts if true.
      */
     function setDemoMode(bool enabled) external onlyOwner {
-        demoMode = enabled;
-        emit DemoModeSet(enabled);
+        if (enabled) revert CannotEnableDemoMode();
+        demoMode = false;
+        emit DemoModeSet(false);
+    }
+
+    /**
+     * @notice Seals the vault epoch schedule permanently (Owner only).
+     */
+    function seal() external onlyOwner {
+        isSealed = true;
+        emit VaultSealed();
     }
 
     /**
      * @notice Registers a new distribution epoch (Owner only).
-     * @param exDate Ex-dividend cutoff timestamp (must be strictly in future and increasing).
+     * @dev Reverts if vault is already sealed (post-deposit or manual seal).
+     *      Epoch schedule is fixed before the first deposit.
+     * @param exDate Ex-dividend cutoff timestamp (must be strictly in future, <= MAX_EPOCH_HORIZON, and increasing).
      * @param payDate Expected payout timestamp (must be >= exDate).
      */
     function createEpoch(uint256 exDate, uint256 payDate) external onlyOwner {
+        if (isSealed) revert EpochsSealed();
+        if (epochCount >= MAX_EPOCHS) revert MaxEpochsReached();
         if (exDate <= block.timestamp) revert ExDateMustBeFuture();
+        if (exDate > block.timestamp + MAX_EPOCH_HORIZON) {
+            revert EpochHorizonExceeded(exDate, block.timestamp + MAX_EPOCH_HORIZON);
+        }
         if (payDate < exDate) revert PayDateBeforeExDate();
         if (epochCount > 0 && exDate <= epochs[epochCount].exDate) revert ExDateNotIncreasing();
 
@@ -113,10 +144,16 @@ contract PrismVault is Ownable, ReentrancyGuard {
 
     /**
      * @notice Splits collateral stock into PrincipalToken and EpochCoupons for live epochs.
+     * @dev Seals the vault epoch schedule on first deposit if not already sealed.
      * @param amount Amount of underlying stock to deposit.
      */
     function deposit(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+
+        if (!isSealed) {
+            isSealed = true;
+            emit VaultSealed();
+        }
 
         mockStock.safeTransferFrom(msg.sender, address(this), amount);
         principalToken.mint(msg.sender, amount);
@@ -145,14 +182,14 @@ contract PrismVault is Ownable, ReentrancyGuard {
             revert ExDateNotReached(epochId, epoch.exDate, block.timestamp);
         }
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 amountPerShare) =
+        (bool declared, IDividendSource.ActionType actionType, uint256 usdcPerShare) =
             dividendSource.getEvent(epochId);
 
         if (!declared) revert DividendNotDeclared(epochId);
         if (actionType != IDividendSource.ActionType.DIVIDEND) revert NonDividendActionType(actionType);
 
         uint256 currentSupply = epochCoupon.totalSupply(epochId);
-        uint256 payout = (currentSupply * amountPerShare) / SHARE_PRECISION;
+        uint256 payout = (currentSupply * usdcPerShare) / SHARE_PRECISION;
 
         epoch.funded = true;
         epoch.fundedSupply = currentSupply;

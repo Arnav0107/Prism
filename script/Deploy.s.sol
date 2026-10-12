@@ -35,7 +35,8 @@ contract DeployScript is Script {
         PrismVault vault = new PrismVault(
             address(stock),
             address(usdc),
-            address(dividendSource)
+            address(dividendSource),
+            true
         );
 
         console.log("PrismVault deployed at:     ", address(vault));

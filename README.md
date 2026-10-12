@@ -56,12 +56,16 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 
 ### 1. Epoch Creation (`createEpoch`)
 - The vault admin registers distribution epochs with strict validation:
-  - `exDate` must be in the future (`> block.timestamp`).
+  - The schedule is fixed before the first deposit. Once the vault is sealed (automatically on the first `deposit` or early via `seal()`), `createEpoch` reverts with `EpochsSealed()`.
+  - Bounded epochs: maximum `MAX_EPOCHS = 16` distribution epochs.
+  - Bounded horizon: `exDate` cannot exceed `block.timestamp + MAX_EPOCH_HORIZON` (400 days).
+  - `exDate` must be strictly in the future (`> block.timestamp`).
   - `payDate` must be on or after `exDate`.
   - Consecutive `exDate` values must be strictly increasing.
 
 ### 2. Deposit (`deposit`)
 - A user locks `amount` of `MockStock` into `PrismVault`.
+- On first deposit, the vault permanently seals the epoch schedule (`isSealed = true`).
 - The vault mints `amount` of `PrincipalToken` to the user.
 - The vault mints `amount` of `EpochCoupon` **only for live epochs** (`!epoch.funded && epoch.exDate > block.timestamp`). Already funded or expired epochs are skipped to protect dividend solvency.
 
@@ -69,8 +73,8 @@ All contracts reside in [`contracts/`](file:///d:/Study/Hackthon/Metropolis(Mona
 - The dividend source declares an event for an epoch (`DIVIDEND`, `SPLIT`, or `OTHER`).
 - When `fundEpoch(epochId)` is called:
   - If the action type is **not** `DIVIDEND` (e.g. a `SPLIT` or `OTHER`), the transaction **reverts** (`NonDividendActionType`).
-  - **Demo Mode Safeguard**: The vault includes a `demoMode` flag (default `true` on testnet to allow immediate dividend demonstrations). **In production, `demoMode` MUST be toggled to `false` via `setDemoMode(false)`**, strictly preventing `fundEpoch` before the ex-dividend date (`ExDateNotReached`).
-  - Calculates required payout: `(couponSupply(epochId) * amountPerShare) / 1e18`.
+  - **Demo Mode Safeguard**: The vault's `demoMode` is initialized via constructor argument (default `true` only on testnet deployment). `setDemoMode` is strictly **one-way**: it can only disable demo mode (`false`). Re-enabling demo mode reverts (`CannotEnableDemoMode`). When disabled, `fundEpoch` before `exDate` reverts (`ExDateNotReached`).
+  - Calculates required payout: `(couponSupply(epochId) * usdcPerShare) / 1e18`, where `usdcPerShare` is the dividend amount in USDC base units (6 decimals) per whole share (1e18 units).
   - Pulls `MockUSDC` from caller into the vault.
   - Marks epoch state as `CLAIMABLE`.
 

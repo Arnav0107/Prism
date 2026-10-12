@@ -41,7 +41,7 @@ contract PrismVaultTest is Test, IERC1155Receiver {
         usdc = new MockUSDC();
         dividendSource = new MockDividendSource();
 
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource));
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 

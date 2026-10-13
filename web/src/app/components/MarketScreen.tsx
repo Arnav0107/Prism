@@ -23,6 +23,7 @@ export const MarketScreen: React.FC = () => {
     walletClient,
     publicClient,
     accountAddress,
+    connectInjected,
     auctions,
     vaultData,
     userBalances,
@@ -107,6 +108,16 @@ export const MarketScreen: React.FC = () => {
   const needsUsdcApproval = exactCostPreview > 0n && usdcAllowanceAuction < exactCostPreview;
 
   const handleApproveUsdc = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -128,6 +139,16 @@ export const MarketScreen: React.FC = () => {
   };
 
   const handleBuy = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     if (!activeAuction) return;
     setIsSubmitting(true);
     const toastId = addToast({
@@ -154,6 +175,16 @@ export const MarketScreen: React.FC = () => {
   };
 
   const handleCancel = async (auctionId: number) => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -179,6 +210,16 @@ export const MarketScreen: React.FC = () => {
   };
 
   const handleApproveCoupons = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -200,6 +241,16 @@ export const MarketScreen: React.FC = () => {
   };
 
   const handleCreateSale = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const parsedAmt = parseStock(sellAmountInput);
     const parsedStart = parseUsdc(sellStartPriceInput);
@@ -423,12 +474,20 @@ export const MarketScreen: React.FC = () => {
                   </div>
                   <div className="prism-callout__row">
                     <span>YOUR USDC BALANCE:</span>
-                    <span>${formatUsdc(usdcBalance)} USDC</span>
+                    <span>{accountAddress && userBalances ? `$${formatUsdc(usdcBalance)} USDC` : '--'}</span>
                   </div>
                 </div>
 
                 <div className="prism-btn-stack">
-                  {needsUsdcApproval ? (
+                  {!accountAddress ? (
+                    <button
+                      type="button"
+                      className="prism-btn prism-btn--primary"
+                      onClick={handleBuy}
+                    >
+                      CONNECT WALLET TO BUY
+                    </button>
+                  ) : needsUsdcApproval ? (
                     <button
                       type="button"
                       className="prism-btn prism-btn--primary"
@@ -575,7 +634,15 @@ export const MarketScreen: React.FC = () => {
             </div>
 
             <div className="prism-btn-stack">
-              {!userBalances?.isAuctionApprovedCoupons ? (
+              {!accountAddress ? (
+                <button
+                  type="button"
+                  className="prism-btn prism-btn--primary"
+                  onClick={handleCreateSale}
+                >
+                  CONNECT WALLET TO SELL
+                </button>
+              ) : !userBalances?.isAuctionApprovedCoupons ? (
                 <button
                   type="button"
                   className="prism-btn prism-btn--secondary"

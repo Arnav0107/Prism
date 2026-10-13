@@ -22,6 +22,7 @@ export const SplitScreen: React.FC = () => {
     walletClient,
     publicClient,
     accountAddress,
+    connectInjected,
     vaultData,
     userBalances,
     balanceStatus,
@@ -77,6 +78,16 @@ export const SplitScreen: React.FC = () => {
     vaultData?.epochs.some((e) => !e.funded && e.exDate > now) ?? true;
 
   const handleMintStock = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -102,6 +113,16 @@ export const SplitScreen: React.FC = () => {
   };
 
   const handleApprove = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -127,6 +148,16 @@ export const SplitScreen: React.FC = () => {
   };
 
   const handleDeposit = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -156,7 +187,15 @@ export const SplitScreen: React.FC = () => {
   };
 
   const handleZap = async () => {
-    if (!walletClient || !vaultData) return;
+    if (!walletClient || !accountAddress || !vaultData) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -203,6 +242,16 @@ export const SplitScreen: React.FC = () => {
   };
 
   const handleRecombine = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -232,6 +281,16 @@ export const SplitScreen: React.FC = () => {
   };
 
   const handleRedeem = async () => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',
@@ -261,6 +320,7 @@ export const SplitScreen: React.FC = () => {
   };
 
   const formatBalanceValue = (val: bigint | undefined, formatter: (v: bigint) => string) => {
+    if (!accountAddress) return '--';
     return formatBalanceStateValue(balanceStatus, val, formatter);
   };
 
@@ -279,6 +339,7 @@ export const SplitScreen: React.FC = () => {
   });
 
   const getRedeemButtonText = () => {
+    if (!accountAddress) return 'CONNECT WALLET TO REDEEM';
     if (balanceStatus === 'loading') return 'LOADING BALANCES...';
     if (balanceStatus === 'not-deployed') return 'CONTRACTS NOT DEPLOYED';
     if (balanceStatus === 'error') return 'ERROR LOADING BALANCES';
@@ -290,11 +351,23 @@ export const SplitScreen: React.FC = () => {
   };
 
   const isRedeemDisabled =
-    isSubmitting ||
-    balanceStatus !== 'loaded' ||
-    hasFutureEpochs ||
-    ptBalance < parsedRedeem ||
-    parsedRedeem === 0n;
+    !accountAddress
+      ? false
+      : isSubmitting ||
+        balanceStatus !== 'loaded' ||
+        hasFutureEpochs ||
+        ptBalance < parsedRedeem ||
+        parsedRedeem === 0n;
+
+  const depositButtonText = !accountAddress
+    ? 'CONNECT WALLET TO DEPOSIT'
+    : depositState.buttonText;
+  const isDepositDisabled = !accountAddress ? false : depositState.disabled;
+
+  const recombineButtonText = !accountAddress
+    ? 'CONNECT WALLET TO RECOMBINE'
+    : recombineState.buttonText;
+  const isRecombineDisabled = !accountAddress ? false : recombineState.disabled;
 
   return (
     <div className="prism-split-screen font-mono">
@@ -408,15 +481,15 @@ export const SplitScreen: React.FC = () => {
               type="button"
               className="prism-btn prism-btn--primary"
               onClick={needsApproval ? handleApprove : handleDeposit}
-              disabled={depositState.disabled}
+              disabled={isDepositDisabled}
             >
-              {depositState.buttonText}
+              {depositButtonText}
             </button>
             <button
               type="button"
               className="prism-btn prism-btn--secondary"
               onClick={handleZap}
-              disabled={depositState.disabled}
+              disabled={isDepositDisabled}
               title="Deposit collateral, receive PT, and immediately list dividend coupons on Dutch auction for immediate upfront liquidity"
             >
               ⚡ ZAP: DEPOSIT & SELL MY NEXT 4 DIVIDENDS
@@ -481,9 +554,9 @@ export const SplitScreen: React.FC = () => {
               type="button"
               className="prism-btn prism-btn--secondary"
               onClick={handleRecombine}
-              disabled={recombineState.disabled}
+              disabled={isRecombineDisabled}
             >
-              {recombineState.buttonText}
+              {recombineButtonText}
             </button>
           </section>
 

@@ -6,6 +6,7 @@ import {
   getInjectedWalletClient,
   getActiveAddresses,
   ANVIL_DEV_ACCOUNTS,
+  DEFAULT_RPC_URL,
   LOCAL_CHAIN_ID,
   MONAD_TESTNET_CHAIN_ID,
   fetchVaultOverview,
@@ -51,8 +52,8 @@ export interface AppContextType {
   isDevAccount: boolean;
   activeAccountIndex: number;
   setActiveDevAccount: (index: number) => void;
-  accountAddress: Address;
-  walletClient: WalletClient;
+  accountAddress: Address | null;
+  walletClient: WalletClient | null;
   publicClient: PublicClient;
   isConnectingInjected: boolean;
   connectInjected: () => Promise<void>;
@@ -86,9 +87,12 @@ export interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?: number }> = ({
+  children,
+  initialChainId,
+}) => {
   const [chainId, setChainId] = useState<number>(() => {
-    return isDeployedOnMonad ? MONAD_TESTNET_CHAIN_ID : LOCAL_CHAIN_ID;
+    return initialChainId ?? (isDeployedOnMonad ? MONAD_TESTNET_CHAIN_ID : LOCAL_CHAIN_ID);
   });
 
   const getInitialTab = (): AppTab => {
@@ -129,15 +133,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const activeDevAccount = ANVIL_DEV_ACCOUNTS[activeAccountIndex] ?? ANVIL_DEV_ACCOUNTS[0];
 
-  const accountAddress: Address = useInjected && injectedAddress ? injectedAddress : activeDevAccount.address;
+  const isLocal = chainId === LOCAL_CHAIN_ID;
 
-  const walletClient: WalletClient = useMemo(() => {
+  const accountAddress: Address | null = useMemo(() => {
+    if (useInjected && injectedAddress) {
+      return injectedAddress;
+    }
+    if (isLocal) {
+      return activeDevAccount.address;
+    }
+    return null;
+  }, [useInjected, injectedAddress, isLocal, activeDevAccount]);
+
+  const walletClient: WalletClient | null = useMemo(() => {
     if (useInjected) {
       const inj = getInjectedWalletClient(chainId);
       if (inj) return inj;
     }
-    return getDevWalletClient(activeDevAccount.privateKey);
-  }, [useInjected, chainId, activeDevAccount]);
+    if (isLocal) {
+      return getDevWalletClient(activeDevAccount.privateKey, DEFAULT_RPC_URL, LOCAL_CHAIN_ID);
+    }
+    return null;
+  }, [useInjected, chainId, isLocal, activeDevAccount]);
 
   const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -166,12 +183,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ethereum = (window as any).ethereum;
-      const client = getInjectedWalletClient(chainId);
-      if (!client) throw new Error('Could not initialize injected client');
-
-      const accounts = await client.requestAddresses();
+      const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
       if (accounts && accounts.length > 0) {
-        setInjectedAddress(accounts[0]);
+        setInjectedAddress(accounts[0] as Address);
         setUseInjected(true);
 
         // Detect current wallet chain
@@ -251,6 +265,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ethereum = (window as any).ethereum;
 
+    // Check if wallet is already connected on mount
+    ethereum
+      .request?.({ method: 'eth_accounts' })
+      .then((accounts: string[]) => {
+        if (accounts && accounts.length > 0) {
+          setInjectedAddress(accounts[0] as Address);
+          setUseInjected(true);
+          ethereum
+            .request?.({ method: 'eth_chainId' })
+            .then((hexChain: string) => {
+              if (hexChain) {
+                setChainId(parseInt(hexChain, 16));
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts && accounts.length > 0) {
         setInjectedAddress(accounts[0] as Address);
@@ -295,8 +328,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const vOverview = await fetchVaultOverview(publicClient);
       setVaultData(vOverview);
 
-      const balances = await fetchUserBalances(publicClient, accountAddress, vOverview.epochCount);
-      setUserBalances(balances);
+      if (accountAddress) {
+        const balances = await fetchUserBalances(publicClient, accountAddress, vOverview.epochCount);
+        setUserBalances(balances);
+      } else {
+        setUserBalances(null);
+      }
 
       const mAuctions = await fetchMarketAuctions(publicClient);
       setAuctions(mAuctions);
@@ -334,7 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     chainId,
     activeTab,
     setActiveTab,
-    isDevAccount: !useInjected,
+    isDevAccount: !useInjected && isLocal && Boolean(accountAddress),
     activeAccountIndex,
     setActiveDevAccount,
     accountAddress,

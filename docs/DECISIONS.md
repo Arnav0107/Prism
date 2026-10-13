@@ -25,3 +25,17 @@ This document records key design and architecture decisions made during the fina
    - `Pausable` guardian role pauses inflows (`deposit`, `createAuction`, `buy`). Capital redemptions (`recombine`, `redeemPrincipal`, `claim`, `cancel`, `fundEpoch`) are strictly non-pausable so users can never be trapped in paused contracts.
 4. **Auction Safety Boundaries**:
    - Capped duration to 30 days (`MAX_AUCTION_DURATION = 30 days`), required `startPrice <= type(uint128).max`, and rejected auctions extending beyond the epoch's ex-dividend date (`AuctionExtendsPastExDate`).
+
+---
+
+## Tier 2 Decisions
+1. **In-Kind Rebasing Stock Architecture**:
+   - For rebasing assets (like xStocks), dividend increases expand the token supply without external USDC funding. In `inKindDividends` mode, `fundEpoch` does not pull from an external oracle or USDC pool; it measures on-chain surplus stock above total principal obligations (`mockStock.balanceOf(vault) - principalToken.totalSupply() - totalUnclaimedInKindStock`) and locks that surplus into `totalFundedStock[epochId]`.
+   - Coupon holders receive underlying stock upon `claim()`.
+   - Deposits in `inKindDividends` mode permit a 2 wei tolerance for integer share math conversions across rebase multipliers.
+2. **Factory & Registry Ownership Pattern**:
+   - `PrismFactory.createSeries` deploys `PrismVault` and `PrismAuction` and calls `transferOwnership(seriesOwner)` on both. Because both vault and auction use OpenZeppelin `Ownable2Step`, the nominated series manager must call `acceptOwnership()` on both contracts, preventing accidental loss of administrative control.
+3. **One-Click Zap Architecture**:
+   - Rather than having `PrismZap` act as an intermediary seller escrowing funds and forwarding proceeds, `PrismAuction.createBatchAuctionsFor` accepts coupons from `msg.sender` (the Zap contract) while setting `seller = user`. This ensures buyers pay USDC directly to the user's wallet and auction cancellations refund coupons directly to the user.
+4. **Compliance Hook Non-Interference with Vault Operations**:
+   - `PrincipalToken` and `EpochCoupon` call `IComplianceHook.verifyTransfer(from, to, amount)` strictly during user-to-user transfers (`from != address(0) && to != address(0)`). Minting and burning are unencumbered, guaranteeing that deposits, redemptions, recombines, and dividend claims can never be frozen by third-party hook reverts.

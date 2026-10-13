@@ -199,6 +199,37 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
     }
 
     /**
+     * @notice Creates multiple Dutch auctions on behalf of a specific seller address (e.g. via PrismZap).
+     * @dev Escrows coupons from msg.sender, but sets seller and payout destination to `seller`.
+     * @param seller Beneficiary address that owns the auctions and receives purchase proceeds.
+     * @param epochIds Array of target epoch identifiers.
+     * @param amounts Array of coupon amounts to escrow per epoch.
+     * @param startPrices Array of starting prices per epoch.
+     * @param floorPrices Array of floor prices per epoch.
+     * @param duration Duration in seconds for all created auctions.
+     * @return auctionIds Array of assigned auction identifiers.
+     */
+    function createBatchAuctionsFor(
+        address seller,
+        uint256[] calldata epochIds,
+        uint256[] calldata amounts,
+        uint256[] calldata startPrices,
+        uint256[] calldata floorPrices,
+        uint256 duration
+    ) external nonReentrant whenNotPaused returns (uint256[] memory auctionIds) {
+        if (seller == address(0)) revert ZeroAddress();
+        uint256 total = epochIds.length;
+        if (total != amounts.length || total != startPrices.length || total != floorPrices.length) {
+            revert ArrayLengthMismatch();
+        }
+
+        auctionIds = new uint256[](total);
+        for (uint256 i = 0; i < total; ++i) {
+            auctionIds[i] = _createAuctionFor(seller, epochIds[i], amounts[i], startPrices[i], floorPrices[i], duration);
+        }
+    }
+
+    /**
      * @notice Computes deterministic current price of an auction with linear per-second decay.
      * @param auctionId Target auction identifier.
      * @return price Current price in MockUSDC base units per 1e18 coupons.
@@ -343,6 +374,17 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
         internal
         returns (uint256 auctionId)
     {
+        return _createAuctionFor(msg.sender, epochId, amount, startPrice, floorPrice, duration);
+    }
+
+    function _createAuctionFor(
+        address seller,
+        uint256 epochId,
+        uint256 amount,
+        uint256 startPrice,
+        uint256 floorPrice,
+        uint256 duration
+    ) internal returns (uint256 auctionId) {
         if (amount == 0) revert ZeroAmount();
         if (startPrice < floorPrice || floorPrice == 0 || startPrice > type(uint128).max) revert InvalidPrice();
         if (duration == 0 || duration > MAX_AUCTION_DURATION) revert InvalidDuration();
@@ -367,7 +409,7 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
 
         auctionId = nextAuctionId++;
         auctions[auctionId] = Auction({
-            seller: msg.sender,
+            seller: seller,
             epochId: epochId,
             amount: amount,
             initialAmount: amount,
@@ -382,7 +424,7 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
 
         epochCoupon.safeTransferFrom(msg.sender, address(this), epochId, amount, "");
 
-        emit AuctionCreated(auctionId, msg.sender, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
+        emit AuctionCreated(auctionId, seller, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
     }
 
     /**

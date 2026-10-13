@@ -718,6 +718,32 @@ export async function createBatchAuctions(
   );
 }
 
+export async function zapDepositAndSellDividends(
+  walletClient: WalletClient,
+  amount: bigint,
+  epochIds: number[],
+  startPrices: bigint[],
+  floorPrices: bigint[],
+  durationSeconds: bigint
+): Promise<{ depositHash: Hash; batchAuctionHash?: Hash }> {
+  validateNonNegativeAmount(amount, 'Deposit amount');
+  const depositHash = await depositShares(walletClient, amount);
+  let batchAuctionHash: Hash | undefined;
+  if (epochIds.length > 0) {
+    await approveCouponsForAuction(walletClient, true);
+    const amounts = epochIds.map(() => amount);
+    batchAuctionHash = await createBatchAuctions(
+      walletClient,
+      epochIds,
+      amounts,
+      startPrices,
+      floorPrices,
+      durationSeconds
+    );
+  }
+  return { depositHash, batchAuctionHash };
+}
+
 export async function buyAuction(
   walletClient: WalletClient,
   auctionId: number,

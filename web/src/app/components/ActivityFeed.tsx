@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { parseAbiItem, formatUnits, type Hash, type Address } from 'viem';
 import { useApp } from '../context/AppContext';
 import { DEPLOYED_ADDRESSES, MONAD_TESTNET_CHAIN_ID } from '../../chain/contracts';
+import { MONAD_EXPLORER_URL } from '../../config/deployments';
 import './ActivityFeed.css';
 
 export type ActivityEventType = 'DEPOSIT' | 'TRADE' | 'FUNDING' | 'CLAIM';
@@ -206,9 +207,9 @@ export const ActivityFeed: React.FC = () => {
 
   const getExplorerUrl = (txHash: Hash): string => {
     if (chainId === MONAD_TESTNET_CHAIN_ID) {
-      return `https://testnet.monadexplorer.com/tx/${txHash}`;
+      return `${MONAD_EXPLORER_URL}/tx/${txHash}`;
     }
-    return `https://testnet.monadexplorer.com/tx/${txHash}`;
+    return `${MONAD_EXPLORER_URL}/tx/${txHash}`;
   };
 
   return (

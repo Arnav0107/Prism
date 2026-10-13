@@ -4,6 +4,7 @@ import localDeploymentsRaw from '../chain/deployments.local.json';
 
 export const MONAD_TESTNET_CHAIN_ID = 10143;
 export const LOCAL_CHAIN_ID = 31337;
+export const MONAD_EXPLORER_URL = 'https://testnet.monadvision.com';
 
 export const monadTestnetChain: Chain = defineChain({
   id: 10143,
@@ -13,7 +14,7 @@ export const monadTestnetChain: Chain = defineChain({
     default: { http: ['https://testnet-rpc.monad.xyz'] },
   },
   blockExplorers: {
-    default: { name: 'MonadVision', url: 'https://testnet.monadexplorer.com' },
+    default: { name: 'MonadVision', url: MONAD_EXPLORER_URL },
   },
 });
 
@@ -33,7 +34,16 @@ export interface DeploymentManifest {
   contracts: ContractAddresses;
 }
 
-export const monadDeployments: DeploymentManifest = monadDeploymentsRaw as unknown as DeploymentManifest;
+const rawMonad = monadDeploymentsRaw as any;
+export const monadDeployments: DeploymentManifest = (
+  rawMonad?.contracts
+    ? rawMonad
+    : {
+        chainId: rawMonad?.chainId || 10143,
+        contracts: rawMonad as ContractAddresses,
+      }
+) as DeploymentManifest;
+
 export const localDeployments: DeploymentManifest = localDeploymentsRaw as unknown as DeploymentManifest;
 
 /**

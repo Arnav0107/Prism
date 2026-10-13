@@ -35,6 +35,15 @@
   border-radius: 50%;
   background: var(--color-vermilion);
   display: inline-block;
+  transition: background-color 0.2s ease;
+}
+
+.prism-wallet-bar__status-dot--ready {
+  background: #10b981;
+}
+
+.prism-wallet-bar__status-dot--error {
+  background: var(--color-vermilion);
 }
 
 .prism-wallet-bar__switcher {

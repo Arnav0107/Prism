@@ -8,6 +8,9 @@ import {
   recombineShares,
   redeemPrincipal,
   mintMockTokens,
+  computeDepositState,
+  computeRecombineState,
+  formatBalanceStateValue,
   DEPLOYED_ADDRESSES,
 } from '../../chain/contracts';
 import { decodeContractError } from '../../chain/errors';
@@ -20,6 +23,9 @@ export const SplitScreen: React.FC = () => {
     accountAddress,
     vaultData,
     userBalances,
+    balanceStatus,
+    balanceErrorMessage,
+    retryLoad,
     refreshData,
     addToast,
     updateToast,
@@ -30,13 +36,13 @@ export const SplitScreen: React.FC = () => {
   const [redeemInput, setRedeemInput] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isBalanceLoaded = balanceStatus === 'loaded';
   const parsedDeposit = parseStock(depositInput);
   const stockBalance = userBalances?.stockBalance ?? 0n;
   const stockAllowance = userBalances?.stockAllowanceVault ?? 0n;
   const ptBalance = userBalances?.ptBalance ?? 0n;
 
-  const needsApproval = parsedDeposit > 0n && stockAllowance < parsedDeposit;
-  const hasInsufficientStock = parsedDeposit > stockBalance;
+  const needsApproval = isBalanceLoaded && parsedDeposit > 0n && stockAllowance < parsedDeposit;
 
   // Recombine eligibility check:
   // Requires PT >= recombineAmount and EC(i) >= recombineAmount for all live epochs
@@ -44,7 +50,7 @@ export const SplitScreen: React.FC = () => {
   const now = BigInt(Math.floor(Date.now() / 1000));
 
   const missingCouponsForRecombine: { epochId: number; held: bigint }[] = [];
-  if (vaultData && userBalances && parsedRecombine > 0n) {
+  if (isBalanceLoaded && vaultData && userBalances && parsedRecombine > 0n) {
     for (const epoch of vaultData.epochs) {
       const isLive = !epoch.funded && epoch.exDate > now;
       if (isLive) {
@@ -57,6 +63,7 @@ export const SplitScreen: React.FC = () => {
   }
 
   const canRecombine =
+    isBalanceLoaded &&
     parsedRecombine > 0n &&
     ptBalance >= parsedRecombine &&
     missingCouponsForRecombine.length === 0;
@@ -204,8 +211,62 @@ export const SplitScreen: React.FC = () => {
     }
   };
 
+  const formatBalanceValue = (val: bigint | undefined, formatter: (v: bigint) => string) => {
+    return formatBalanceStateValue(balanceStatus, val, formatter);
+  };
+
+  const depositState = computeDepositState({
+    balanceStatus,
+    stockBalance,
+    parsedDeposit,
+    needsApproval,
+    isSubmitting,
+  });
+
+  const recombineState = computeRecombineState({
+    balanceStatus,
+    canRecombine,
+    isSubmitting,
+  });
+
+  const getRedeemButtonText = () => {
+    if (balanceStatus === 'loading') return 'LOADING BALANCES...';
+    if (balanceStatus === 'not-deployed') return 'CONTRACTS NOT DEPLOYED';
+    if (balanceStatus === 'error') return 'ERROR LOADING BALANCES';
+    if (hasFutureEpochs) return 'FUTURE EPOCHS REMAIN';
+    if (ptBalance < parsedRedeem) return 'INSUFFICIENT PT';
+    if (parsedRedeem === 0n) return 'ENTER AMOUNT';
+    if (isSubmitting) return 'REDEEMING...';
+    return 'REDEEM PRINCIPAL';
+  };
+
+  const isRedeemDisabled =
+    isSubmitting ||
+    balanceStatus !== 'loaded' ||
+    hasFutureEpochs ||
+    ptBalance < parsedRedeem ||
+    parsedRedeem === 0n;
+
   return (
     <div className="prism-split-screen font-mono">
+      {(balanceStatus === 'not-deployed' || balanceStatus === 'error') && (
+        <div className="prism-alert-banner font-mono" role="alert">
+          <div className="prism-alert-banner__content">
+            <span className="prism-alert-banner__icon">⚠</span>
+            <span>
+              {balanceErrorMessage || 'Contracts not found on this chain — run scripts/deploy-local'}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="prism-btn prism-btn--secondary prism-alert-banner__retry"
+            onClick={() => void retryLoad()}
+          >
+            RETRY
+          </button>
+        </div>
+      )}
+
       <div className="prism-split-screen__grid">
         {/* Left Column: Deposit & Bifurcate */}
         <section className="prism-card" aria-labelledby="deposit-heading">
@@ -224,16 +285,15 @@ export const SplitScreen: React.FC = () => {
           <div className="prism-form-group">
             <div className="prism-form-group__label-row">
               <label htmlFor="deposit-amount-input">AMOUNT (mSTOCK)</label>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div className="prism-form-group__actions">
                 <span className="prism-form-group__balance">
-                  AVAILABLE: {userBalances ? formatStock(userBalances.stockBalance) : '0.00'}
+                  AVAILABLE: {formatBalanceValue(stockBalance, formatStock)}
                 </span>
                 <button
                   type="button"
-                  className="prism-input__max-btn font-mono"
-                  style={{ textDecoration: 'underline', padding: '2px 8px', height: 'auto', background: 'transparent', cursor: 'pointer' }}
+                  className="prism-faucet-btn font-mono"
                   onClick={handleMintStock}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || balanceStatus === 'not-deployed'}
                   title="Mint 100 free testnet stock tokens"
                 >
                   + FAUCET (MINT 100)
@@ -276,33 +336,14 @@ export const SplitScreen: React.FC = () => {
           </div>
 
           <div className="prism-btn-stack">
-            {needsApproval ? (
-              <button
-                type="button"
-                className="prism-btn prism-btn--primary"
-                onClick={handleApprove}
-                disabled={isSubmitting || hasInsufficientStock || parsedDeposit === 0n}
-              >
-                {hasInsufficientStock
-                  ? 'INSUFFICIENT mSTOCK BALANCE'
-                  : isSubmitting
-                    ? 'APPROVING...'
-                    : 'APPROVE mSTOCK'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="prism-btn prism-btn--primary"
-                onClick={handleDeposit}
-                disabled={isSubmitting || hasInsufficientStock || parsedDeposit === 0n}
-              >
-                {hasInsufficientStock
-                  ? 'INSUFFICIENT mSTOCK BALANCE'
-                  : isSubmitting
-                    ? 'DEPOSITING...'
-                    : 'DEPOSIT & BIFURCATE'}
-              </button>
-            )}
+            <button
+              type="button"
+              className="prism-btn prism-btn--primary"
+              onClick={needsApproval ? handleApprove : handleDeposit}
+              disabled={depositState.disabled}
+            >
+              {depositState.buttonText}
+            </button>
           </div>
         </section>
 
@@ -326,7 +367,7 @@ export const SplitScreen: React.FC = () => {
               <div className="prism-form-group__label-row">
                 <label htmlFor="recombine-amount-input">AMOUNT TO RECOMBINE</label>
                 <span className="prism-form-group__balance">
-                  PT HELD: {userBalances ? formatStock(ptBalance) : '0.00'}
+                  PT HELD: {formatBalanceValue(ptBalance, formatStock)}
                 </span>
               </div>
 
@@ -353,7 +394,7 @@ export const SplitScreen: React.FC = () => {
               </div>
             )}
 
-            {ptBalance < parsedRecombine && parsedRecombine > 0n && (
+            {balanceStatus === 'loaded' && ptBalance < parsedRecombine && parsedRecombine > 0n && (
               <div className="prism-warning-box">
                 Principal Token required: you hold {formatStock(ptBalance)}, requested {recombineInput}.
               </div>
@@ -363,13 +404,9 @@ export const SplitScreen: React.FC = () => {
               type="button"
               className="prism-btn prism-btn--secondary"
               onClick={handleRecombine}
-              disabled={isSubmitting || !canRecombine}
+              disabled={recombineState.disabled}
             >
-              {!canRecombine
-                ? 'INELIGIBLE TO RECOMBINE'
-                : isSubmitting
-                  ? 'RECOMBINING...'
-                  : 'RECOMBINE & UNLOCK SHARE'}
+              {recombineState.buttonText}
             </button>
           </section>
 
@@ -391,7 +428,7 @@ export const SplitScreen: React.FC = () => {
               <div className="prism-form-group__label-row">
                 <label htmlFor="redeem-amount-input">AMOUNT (PT)</label>
                 <span className="prism-form-group__balance">
-                  PT HELD: {userBalances ? formatStock(ptBalance) : '0.00'}
+                  PT HELD: {formatBalanceValue(ptBalance, formatStock)}
                 </span>
               </div>
 
@@ -407,7 +444,7 @@ export const SplitScreen: React.FC = () => {
               />
             </div>
 
-            {hasFutureEpochs && (
+            {balanceStatus === 'loaded' && hasFutureEpochs && (
               <div className="prism-info-box">
                 Active future epochs remain unexpired. Principal is locked until all epochs reach maturity. Use
                 Recombine if you hold corresponding coupons.
@@ -418,15 +455,9 @@ export const SplitScreen: React.FC = () => {
               type="button"
               className="prism-btn prism-btn--secondary"
               onClick={handleRedeem}
-              disabled={isSubmitting || hasFutureEpochs || ptBalance < parsedRedeem || parsedRedeem === 0n}
+              disabled={isRedeemDisabled}
             >
-              {hasFutureEpochs
-                ? 'FUTURE EPOCHS REMAIN'
-                : ptBalance < parsedRedeem
-                  ? 'INSUFFICIENT PT'
-                  : isSubmitting
-                    ? 'REDEEMING...'
-                    : 'REDEEM PRINCIPAL'}
+              {getRedeemButtonText()}
             </button>
           </section>
         </div>
@@ -459,7 +490,7 @@ export const SplitScreen: React.FC = () => {
                 <td className="prism-table__addr" title={DEPLOYED_ADDRESSES.PrincipalToken}>
                   {DEPLOYED_ADDRESSES.PrincipalToken.slice(0, 8)}...
                 </td>
-                <td><strong>{userBalances ? formatStock(ptBalance) : '0.00'}</strong></td>
+                <td><strong>{formatBalanceValue(ptBalance, formatStock)}</strong></td>
                 <td><span className="prism-tag prism-tag--accent">PERPETUAL</span></td>
               </tr>
               {vaultData?.epochs.map((ep) => {
@@ -475,7 +506,7 @@ export const SplitScreen: React.FC = () => {
                     <td className="prism-table__addr" title={DEPLOYED_ADDRESSES.EpochCoupon}>
                       ID #{ep.epochId}
                     </td>
-                    <td><strong>{formatStock(bal)}</strong></td>
+                    <td><strong>{formatBalanceValue(bal, formatStock)}</strong></td>
                     <td>
                       <span className={`prism-tag ${isFunded ? 'prism-tag--success' : isPast ? 'prism-tag--neutral' : 'prism-tag--accent'}`}>
                         {statusTag}

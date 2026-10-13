@@ -38,6 +38,17 @@ for (const tx of runLatest.transactions || []) {
   }
 }
 
+const deploymentsJsonPath = path.join(chainDir, 'deployments.local.json');
+let existingContracts = {};
+if (fs.existsSync(deploymentsJsonPath)) {
+  try {
+    const existing = JSON.parse(fs.readFileSync(deploymentsJsonPath, 'utf8'));
+    existingContracts = existing.contracts || {};
+  } catch {}
+}
+
+deployments.contracts = { ...existingContracts, ...deployments.contracts };
+
 // Fallback / verification check for known names
 const expectedNames = [
   'MockStock',
@@ -55,7 +66,6 @@ for (const name of expectedNames) {
   }
 }
 
-const deploymentsJsonPath = path.join(chainDir, 'deployments.local.json');
 fs.writeFileSync(deploymentsJsonPath, JSON.stringify(deployments, null, 2), 'utf8');
 console.log(`Saved deployments to ${deploymentsJsonPath}`);
 

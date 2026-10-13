@@ -15,7 +15,6 @@ import {
   parseAbiItem,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import deploymentsLocal from './deployments.local.json';
 import {
   MONAD_TESTNET_CHAIN_ID,
   LOCAL_CHAIN_ID,
@@ -59,18 +58,37 @@ export interface ContractAddresses {
   PrismAuction: Address;
 }
 
-const activeManifest = isDeployedOnMonad
-  ? getDeploymentsForChain(MONAD_TESTNET_CHAIN_ID)
-  : deploymentsLocal.contracts;
+export function getActiveAddresses(chainId?: number): ContractAddresses {
+  if (chainId !== undefined) {
+    return getDeploymentsForChain(chainId);
+  }
+  return isDeployedOnMonad
+    ? getDeploymentsForChain(MONAD_TESTNET_CHAIN_ID)
+    : getDeploymentsForChain(LOCAL_CHAIN_ID);
+}
 
 export const DEPLOYED_ADDRESSES: ContractAddresses = {
-  MockStock: (activeManifest.MockStock || '0x0') as Address,
-  MockUSDC: (activeManifest.MockUSDC || '0x0') as Address,
-  MockDividendSource: (activeManifest.MockDividendSource || '0x0') as Address,
-  PrismVault: (activeManifest.PrismVault || '0x0') as Address,
-  PrincipalToken: (activeManifest.PrincipalToken || '0x0') as Address,
-  EpochCoupon: (activeManifest.EpochCoupon || '0x0') as Address,
-  PrismAuction: (activeManifest.PrismAuction || '0x0') as Address,
+  get MockStock() {
+    return getActiveAddresses().MockStock;
+  },
+  get MockUSDC() {
+    return getActiveAddresses().MockUSDC;
+  },
+  get MockDividendSource() {
+    return getActiveAddresses().MockDividendSource;
+  },
+  get PrismVault() {
+    return getActiveAddresses().PrismVault;
+  },
+  get PrincipalToken() {
+    return getActiveAddresses().PrincipalToken;
+  },
+  get EpochCoupon() {
+    return getActiveAddresses().EpochCoupon;
+  },
+  get PrismAuction() {
+    return getActiveAddresses().PrismAuction;
+  },
 };
 
 export const ANVIL_DEV_ACCOUNTS = [
@@ -536,6 +554,109 @@ export async function cancelAuction(
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismAuction, PrismAuctionAbi, 'cancel', [
     BigInt(auctionId),
   ]);
+}
+
+// -----------------------------------------------------------------------------
+// Balance State Machine UI Helpers
+// -----------------------------------------------------------------------------
+
+export type BalanceLoadStatus = 'loading' | 'loaded' | 'error' | 'not-deployed';
+
+export function formatBalanceStateValue(
+  status: BalanceLoadStatus,
+  val: bigint | undefined,
+  formatter: (v: bigint) => string
+): string {
+  if (status === 'loading') return '...';
+  if (status === 'loaded' && val !== undefined) return formatter(val);
+  return '--';
+}
+
+export function computeDepositState({
+  balanceStatus,
+  stockBalance,
+  parsedDeposit,
+  needsApproval,
+  isSubmitting,
+}: {
+  balanceStatus: BalanceLoadStatus;
+  stockBalance: bigint;
+  parsedDeposit: bigint;
+  needsApproval: boolean;
+  isSubmitting: boolean;
+}): {
+  hasInsufficientStock: boolean;
+  disabled: boolean;
+  buttonText: string;
+} {
+  const isLoaded = balanceStatus === 'loaded';
+  const hasInsufficientStock = isLoaded && parsedDeposit > stockBalance;
+
+  let buttonText = 'DEPOSIT & BIFURCATE';
+  let disabled = isSubmitting;
+
+  if (balanceStatus === 'loading') {
+    buttonText = 'LOADING BALANCES...';
+    disabled = true;
+  } else if (balanceStatus === 'not-deployed') {
+    buttonText = 'CONTRACTS NOT DEPLOYED';
+    disabled = true;
+  } else if (balanceStatus === 'error') {
+    buttonText = 'ERROR LOADING BALANCES';
+    disabled = true;
+  } else if (hasInsufficientStock) {
+    buttonText = 'INSUFFICIENT mSTOCK BALANCE';
+    disabled = true;
+  } else if (parsedDeposit === 0n) {
+    buttonText = 'ENTER AMOUNT';
+    disabled = true;
+  } else if (isSubmitting) {
+    buttonText = needsApproval ? 'APPROVING...' : 'DEPOSITING...';
+    disabled = true;
+  } else {
+    buttonText = needsApproval ? 'APPROVE mSTOCK' : 'DEPOSIT & BIFURCATE';
+    disabled = false;
+  }
+
+  return { hasInsufficientStock, disabled, buttonText };
+}
+
+export function computeRecombineState({
+  balanceStatus,
+  canRecombine,
+  isSubmitting,
+}: {
+  balanceStatus: BalanceLoadStatus;
+  canRecombine: boolean;
+  isSubmitting: boolean;
+}): {
+  disabled: boolean;
+  buttonText: string;
+} {
+  let buttonText = 'RECOMBINE & UNLOCK SHARE';
+  let disabled = isSubmitting;
+
+  if (balanceStatus === 'loading') {
+    buttonText = 'LOADING BALANCES...';
+    disabled = true;
+  } else if (balanceStatus === 'not-deployed') {
+    buttonText = 'CONTRACTS NOT DEPLOYED';
+    disabled = true;
+  } else if (balanceStatus === 'error') {
+    buttonText = 'ERROR LOADING BALANCES';
+    disabled = true;
+  } else if (isSubmitting) {
+    buttonText = 'RECOMBINING...';
+    disabled = true;
+  } else if (!canRecombine) {
+    buttonText = 'INELIGIBLE TO RECOMBINE';
+    disabled = true;
+  } else {
+    buttonText = 'RECOMBINE & UNLOCK SHARE';
+    disabled = false;
+  }
+
+  return { disabled, buttonText };
 }
 
 // -----------------------------------------------------------------------------

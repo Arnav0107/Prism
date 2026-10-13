@@ -9,7 +9,8 @@ optimizer = true
 optimizer_runs = 200
 fs_permissions = [
     { access = "read-write", path = "./deployments" },
-    { access = "read-write", path = "./web/src/chain" }
+    { access = "read-write", path = "./web/src/chain" },
+    { access = "read-write", path = "./test" }
 ]
 
 # Remappings

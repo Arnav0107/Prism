@@ -8,9 +8,10 @@ export const AppHeader: React.FC = () => {
 
   const tabs: { id: AppTab; label: string; num: string }[] = [
     { id: 'split', label: 'SPLIT & REDEEM', num: '01' },
-    { id: 'market', label: 'DUTCH MARKET', num: '02' },
-    { id: 'curve', label: 'DIVIDEND CURVE', num: '03' },
-    { id: 'portfolio', label: 'PORTFOLIO & CLAIM', num: '04' },
+    { id: 'calc', label: 'STRIP VS HOLD', num: '02' },
+    { id: 'market', label: 'DUTCH MARKET', num: '03' },
+    { id: 'curve', label: 'DIVIDEND CURVE', num: '04' },
+    { id: 'portfolio', label: 'PORTFOLIO & CLAIM', num: '05' },
   ];
 
   return (

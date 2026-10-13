@@ -4,10 +4,12 @@ import { useTheme } from '../context/ThemeContext';
 import { AppHeader } from './components/AppHeader';
 import { WalletBar } from './components/WalletBar';
 import { SplitScreen } from './components/SplitScreen';
+import { StripCalculator } from './components/StripCalculator';
 import { MarketScreen } from './components/MarketScreen';
 import { DividendCurveScreen } from './components/DividendCurveScreen';
 import { PortfolioScreen } from './components/PortfolioScreen';
 import { RiskPanel } from './components/RiskPanel';
+import { ActivityFeed } from './components/ActivityFeed';
 import { DemoDrawer } from './components/DemoDrawer';
 import { TxToast } from './components/TxToast';
 import './PrismApp.css';
@@ -39,12 +41,14 @@ const AppContent: React.FC = () => {
           ) : (
             <>
               {activeTab === 'split' && <SplitScreen />}
+              {activeTab === 'calc' && <StripCalculator />}
               {activeTab === 'market' && <MarketScreen />}
               {activeTab === 'curve' && <DividendCurveScreen />}
               {activeTab === 'portfolio' && <PortfolioScreen />}
             </>
           )}
 
+          <ActivityFeed />
           <RiskPanel />
         </div>
       </main>

@@ -20,7 +20,7 @@ import {
   type NetworkHealth,
 } from '../../config/deployments';
 
-export type AppTab = 'split' | 'market' | 'curve' | 'portfolio';
+export type AppTab = 'split' | 'calc' | 'market' | 'curve' | 'portfolio';
 export type BalanceLoadStatus = 'loading' | 'loaded' | 'error' | 'not-deployed';
 
 export interface ToastItem {
@@ -93,6 +93,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getInitialTab = (): AppTab => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.toLowerCase();
+      if (hash.includes('calc')) return 'calc';
       if (hash.includes('market')) return 'market';
       if (hash.includes('curve')) return 'curve';
       if (hash.includes('portfolio')) return 'portfolio';

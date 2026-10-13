@@ -373,3 +373,50 @@ node web/scripts/e2e-local.mjs
    - For complete threat actor analysis, see [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
    - For Slither static analysis findings and triage, see [`docs/STATIC_ANALYSIS.md`](docs/STATIC_ANALYSIS.md).
 
+---
+
+## 12. New Features & Keeper Operations
+
+### 1. On-Chain SVG Metadata for EpochCoupons (`EpochCoupon.uri`)
+`EpochCoupon.uri(uint256 id)` computes autonomous on-chain JSON metadata and SVG artwork as a Base64 data URI (`data:application/json;base64,...`).
+- **Dynamic Artwork**: Renders epoch ID, human-readable ex-date (`YYYY-MM-DD` via pure civil date algorithm), status badges (`LIVE` in cyan, `AWAITING FUNDING` in amber, `FUNDED` in emerald), and formatted dividend payouts (`$X.YY USDC`).
+- **Zero Redundant Storage**: State derived entirely from existing `PrismVault` and `DividendSource` records.
+- **Reverts on Invalid IDs**: Nonexistent or uninitialized IDs revert with `EpochDoesNotExist(id)`.
+- **Sample Preview**: Decoded sample SVG is generated during tests at [`test/artifacts/coupon_sample.svg`](test/artifacts/coupon_sample.svg).
+
+### 2. "Strip vs Hold" Economic Calculator
+Available under Tab 02 (`STRIP VS HOLD`) and as an inline banner on Split Screen:
+- **Side-by-side comparison**: Compares immediate Day-1 cash proceeds from selling coupons upfront versus waiting to collect quarterly dividend disbursements over a 1-year horizon.
+- **Retained Capital Exposure**: Highlights that 100% of underlying equity capital upside is preserved 1:1 via Principal Tokens (`PT`).
+- **Transparent Assumptions**: Centrally defined in [`web/src/config/calculatorConstants.ts`](web/src/config/calculatorConstants.ts) and dynamically synced with live on-chain vault parameters when available.
+- **Dynamic Takeaway**: Provides a clear one-line executive summary of liquidity and capital preservation.
+
+### 3. Autonomous Deterministic Keeper Daemon (`/keeper`)
+Located in [`keeper/`](keeper), a deterministic Node.js daemon built with Viem that monitors on-chain events and executes protocol maintenance:
+- **Automated Actions**:
+  - `fundDueEpochs()`: Permissionlessly sweeps and funds epochs that reach ex-date and have declared dividends.
+  - `claimDueEpochs()`: Sweeps funded epochs and claims USDC distributions for any coupons held by the keeper.
+  - `housekeepAuctions()`: Inspects expired auctions. If the keeper is the seller, safely calls `cancelAuction()` to recover escrowed coupons. For third-party auctions, acknowledges permissioning (`OnlySeller`) and skips cleanly.
+- **Robustness & Determinism**:
+  - **No LLM Layer**: Pure deterministic algorithmic state machine.
+  - **Simulate-before-send**: Every transaction is statically simulated via `simulateContract` before broadcast.
+  - **Gas Price Guard**: Pauses transactions if base fee exceeds `MAX_FEE_PER_GAS_GWEI` (default 50 gwei).
+  - **Exponential Backoff**: Up to 3 retries (1s, 2s, 4s delays) on transient RPC/network disconnects.
+  - **Graceful Shutdown**: Traps `SIGINT`/`SIGTERM` to complete in-flight transactions cleanly.
+- **Commands**:
+  ```bash
+  cd keeper
+  npm install
+  npm run dry-run   # Simulates all sweeps without broadcasting transactions
+  npm start         # Live execution loop with event subscription & periodic sweep
+  ```
+- **Operational Profile**: Run by market makers, institutional protocol operators, or automated bots. If offline, users can execute calls directly on-chain via the frontend; no funds are locked or compromised.
+
+### 4. Live On-Chain Activity Feed
+Mounted on the app dashboard ([`ActivityFeed.tsx`](web/src/app/components/ActivityFeed.tsx)):
+- **Real-Time Streaming**: Reads real on-chain logs (`Deposited`, `Purchase`, `EpochFunded`, `CouponClaimed`) from Monad testnet or local Anvil.
+- **Deduplication**: Keyed by `${txHash}-${logIndex}` to prevent duplicate entries.
+- **Interactive Filtering**: Filter by `ALL`, `DEPOSITS`, `TRADES`, `FUNDINGS`, or `CLAIMS`.
+- **Block Explorer Links**: Each event provides direct links to the transaction hash on MonadVision / local explorer.
+
+

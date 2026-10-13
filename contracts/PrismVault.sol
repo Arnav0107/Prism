@@ -80,6 +80,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
     event FundingDefaulted(uint256 indexed epochId);
     event GuardianTransferStarted(address indexed previousGuardian, address indexed newGuardian);
     event GuardianTransferred(address indexed previousGuardian, address indexed newGuardian);
+    event ComplianceHookSet(address indexed hook);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -144,6 +145,16 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (epochCount == 0) revert NoEpochs();
         isSealed = true;
         emit VaultSealed();
+    }
+
+    /**
+     * @notice Configures compliance hook for PrincipalToken and EpochCoupon (Owner only).
+     * @param hook Compliance hook address (or address(0) to disable).
+     */
+    function setComplianceHook(address hook) external onlyOwner {
+        principalToken.setComplianceHook(hook);
+        epochCoupon.setComplianceHook(hook);
+        emit ComplianceHookSet(hook);
     }
 
     /**

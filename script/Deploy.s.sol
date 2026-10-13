@@ -98,11 +98,16 @@ contract DeployScript is Script {
         string memory contractsJson = vm.serializeAddress(contractsObj, "PrismAuction", address(auction));
 
         string memory rootObj = "root";
-        vm.serializeUint(rootObj, "chainId", 10143);
+        vm.serializeUint(rootObj, "chainId", block.chainid);
         string memory finalJson = vm.serializeJson(rootObj, contractsJson);
 
-        vm.writeJson(finalJson, "./deployments/monad-testnet.json");
-        console.log("Serialized deployments to deployments/monad-testnet.json");
+        if (block.chainid == 31337) {
+            vm.writeJson(finalJson, "./web/src/chain/deployments.local.json");
+            console.log("Serialized deployments to web/src/chain/deployments.local.json");
+        } else {
+            vm.writeJson(finalJson, "./deployments/monad-testnet.json");
+            console.log("Serialized deployments to deployments/monad-testnet.json");
+        }
         console.log("Deployment completed successfully.");
     }
 }

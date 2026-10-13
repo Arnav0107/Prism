@@ -6,6 +6,13 @@
   },
   {
     "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "declareEvent",
     "inputs": [
       {
@@ -19,7 +26,7 @@
         "internalType": "enum IDividendSource.ActionType"
       },
       {
-        "name": "amountPerShare",
+        "name": "usdcPerShare",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -49,16 +56,47 @@
         "internalType": "enum IDividendSource.ActionType"
       },
       {
-        "name": "amountPerShare",
+        "name": "usdcPerShare",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "locked",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
+    "name": "lockEvent",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
     "inputs": [],
     "outputs": [
       {
@@ -106,10 +144,42 @@
         "internalType": "enum IDividendSource.ActionType"
       },
       {
-        "name": "amountPerShare",
+        "name": "usdcPerShare",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EventLocked",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -135,7 +205,18 @@
   },
   {
     "type": "error",
-    "name": "EventAlreadyDeclared",
+    "name": "EventIsLocked",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "EventNotDeclared",
     "inputs": [
       {
         "name": "epochId",

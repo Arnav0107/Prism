@@ -13,6 +13,9 @@ export const WalletBar: React.FC = () => {
     switchChain,
     useInjectedWallet,
     userBalances,
+    balanceStatus,
+    balanceErrorMessage,
+    networkHealth,
   } = useApp();
 
   const isMonad = chainId === MONAD_TESTNET_CHAIN_ID;
@@ -22,11 +25,27 @@ export const WalletBar: React.FC = () => {
     ? Object.values(userBalances.couponBalances).reduce((sum, b) => sum + b, 0n)
     : 0n;
 
+  const renderBalance = (val: bigint | undefined, formatter: (b: bigint) => string) => {
+    if (balanceStatus === 'loading') return '...';
+    if (balanceStatus === 'loaded' && val !== undefined) return formatter(val);
+    return '--';
+  };
+
   return (
     <div className="prism-wallet-bar font-mono" role="region" aria-label="Wallet and Account Controller">
       <div className="prism-wallet-bar__left">
-        <div className="prism-wallet-bar__chain-tag">
-          <span className="prism-wallet-bar__status-dot" aria-hidden="true"></span>
+        <div
+          className="prism-wallet-bar__chain-tag"
+          title={networkHealth.message}
+        >
+          <span
+            className={`prism-wallet-bar__status-dot ${
+              networkHealth.isReady
+                ? 'prism-wallet-bar__status-dot--ready'
+                : 'prism-wallet-bar__status-dot--error'
+            }`}
+            aria-hidden="true"
+          ></span>
           <span>
             {isMonad
               ? 'MONAD TESTNET (10143)'
@@ -91,11 +110,11 @@ export const WalletBar: React.FC = () => {
 
       {/* Balances Pill */}
       <div className="prism-wallet-bar__right">
-        <div className="prism-wallet-bar__balances">
+        <div className="prism-wallet-bar__balances" title={balanceErrorMessage}>
           <span className="prism-wallet-bar__bal-item">
             <span className="prism-wallet-bar__bal-label">mSTOCK:</span>
             <span className="prism-wallet-bar__bal-value font-mono">
-              {userBalances ? formatStock(userBalances.stockBalance) : '...'}
+              {renderBalance(userBalances?.stockBalance, formatStock)}
             </span>
           </span>
 
@@ -104,7 +123,7 @@ export const WalletBar: React.FC = () => {
           <span className="prism-wallet-bar__bal-item">
             <span className="prism-wallet-bar__bal-label">mUSDC:</span>
             <span className="prism-wallet-bar__bal-value font-mono">
-              {userBalances ? formatUsdc(userBalances.usdcBalance) : '...'}
+              {renderBalance(userBalances?.usdcBalance, formatUsdc)}
             </span>
           </span>
 
@@ -113,7 +132,7 @@ export const WalletBar: React.FC = () => {
           <span className="prism-wallet-bar__bal-item">
             <span className="prism-wallet-bar__bal-label">PPT:</span>
             <span className="prism-wallet-bar__bal-value font-mono">
-              {userBalances ? formatStock(userBalances.ptBalance) : '...'}
+              {renderBalance(userBalances?.ptBalance, formatStock)}
             </span>
           </span>
 
@@ -122,7 +141,7 @@ export const WalletBar: React.FC = () => {
           <span className="prism-wallet-bar__bal-item">
             <span className="prism-wallet-bar__bal-label">EC:</span>
             <span className="prism-wallet-bar__bal-value font-mono">
-              {userBalances ? formatStock(totalCouponsHeld) : '...'}
+              {renderBalance(totalCouponsHeld, formatStock)}
             </span>
           </span>
         </div>

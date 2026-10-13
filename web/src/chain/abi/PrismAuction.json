@@ -35,6 +35,19 @@
   },
   {
     "type": "function",
+    "name": "MIN_FILL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "activeAuctionCount",
     "inputs": [
       {
@@ -259,6 +272,25 @@
   },
   {
     "type": "function",
+    "name": "epochNotional",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "epochVolume",
     "inputs": [
       {
@@ -376,7 +408,7 @@
     "name": "lastClearingPrice",
     "inputs": [
       {
-        "name": "",
+        "name": "epochId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -522,6 +554,25 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "vwap",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vwapPrice",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -726,6 +777,22 @@
       },
       {
         "name": "currentTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "FillBelowMinimum",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minFill",
         "type": "uint256",
         "internalType": "uint256"
       }

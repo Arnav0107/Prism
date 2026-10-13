@@ -16,9 +16,53 @@
         "name": "dividendSource_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "demoMode_",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "FUNDING_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_EPOCHS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_EPOCH_HORIZON",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -32,6 +76,13 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -188,6 +239,35 @@
   },
   {
     "type": "function",
+    "name": "fundingStatus",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "live",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "awaitingFunding",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "graceEndsAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getEpoch",
     "inputs": [
       {
@@ -247,6 +327,19 @@
   },
   {
     "type": "function",
+    "name": "isSealed",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "mockStock",
     "inputs": [],
     "outputs": [
@@ -274,6 +367,19 @@
   {
     "type": "function",
     "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
     "inputs": [],
     "outputs": [
       {
@@ -326,6 +432,13 @@
   {
     "type": "function",
     "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "seal",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -477,6 +590,44 @@
   },
   {
     "type": "event",
+    "name": "FundingGraceActive",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "graceEndsAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OwnershipTransferred",
     "inputs": [
       {
@@ -533,6 +684,17 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "VaultSealed",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "CannotEnableDemoMode",
+    "inputs": []
+  },
+  {
     "type": "error",
     "name": "DividendNotDeclared",
     "inputs": [
@@ -556,6 +718,22 @@
   },
   {
     "type": "error",
+    "name": "EpochAwaitingFunding",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "graceEndsAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "EpochDoesNotExist",
     "inputs": [
       {
@@ -567,7 +745,39 @@
   },
   {
     "type": "error",
+    "name": "EpochHorizonExceeded",
+    "inputs": [
+      {
+        "name": "exDate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxExDate",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "EpochNotFunded",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "EpochsSealed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EventNotLocked",
     "inputs": [
       {
         "name": "epochId",
@@ -630,6 +840,11 @@
   },
   {
     "type": "error",
+    "name": "MaxEpochsReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NonDividendActionType",
     "inputs": [
       {
@@ -681,6 +896,11 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "UnsupportedCollateral",
+    "inputs": []
   },
   {
     "type": "error",

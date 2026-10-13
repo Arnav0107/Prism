@@ -4,6 +4,7 @@ import {
   getPublicClient,
   getDevWalletClient,
   getInjectedWalletClient,
+  getActiveAddresses,
   ANVIL_DEV_ACCOUNTS,
   LOCAL_CHAIN_ID,
   MONAD_TESTNET_CHAIN_ID,
@@ -13,9 +14,14 @@ import {
   type EpochData,
   type AuctionView,
 } from '../../chain/contracts';
-import { isDeployedOnMonad } from '../../config/deployments';
+import {
+  isDeployedOnMonad,
+  checkNetworkHealth,
+  type NetworkHealth,
+} from '../../config/deployments';
 
 export type AppTab = 'split' | 'market' | 'curve' | 'portfolio';
+export type BalanceLoadStatus = 'loading' | 'loaded' | 'error' | 'not-deployed';
 
 export interface ToastItem {
   id: string;
@@ -23,6 +29,17 @@ export interface ToastItem {
   title: string;
   message?: string;
   hash?: Hash;
+}
+
+export interface UserBalances {
+  stockBalance: bigint;
+  usdcBalance: bigint;
+  ptBalance: bigint;
+  stockAllowanceVault: bigint;
+  usdcAllowanceVault: bigint;
+  usdcAllowanceAuction: bigint;
+  isAuctionApprovedCoupons: boolean;
+  couponBalances: Record<number, bigint>;
 }
 
 export interface AppContextType {
@@ -40,21 +57,17 @@ export interface AppContextType {
   connectInjected: () => Promise<void>;
   switchChain: (targetChainId: number) => Promise<void>;
   useInjectedWallet: boolean;
+  networkHealth: NetworkHealth;
+  // Balance State Machine
+  balanceStatus: BalanceLoadStatus;
+  balanceErrorMessage?: string;
+  userBalances: UserBalances | null;
+  retryLoad: () => Promise<void>;
   // Data
   vaultData: {
     epochCount: number;
     demoMode: boolean;
     epochs: EpochData[];
-  } | null;
-  userBalances: {
-    stockBalance: bigint;
-    usdcBalance: bigint;
-    ptBalance: bigint;
-    stockAllowanceVault: bigint;
-    usdcAllowanceVault: bigint;
-    usdcAllowanceAuction: bigint;
-    isAuctionApprovedCoupons: boolean;
-    couponBalances: Record<number, bigint>;
   } | null;
   auctions: AuctionView[];
   isLoading: boolean;
@@ -92,8 +105,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [injectedAddress, setInjectedAddress] = useState<Address | null>(null);
   const [isConnectingInjected, setIsConnectingInjected] = useState<boolean>(false);
 
+  const [balanceStatus, setBalanceStatus] = useState<BalanceLoadStatus>('loading');
+  const [balanceErrorMessage, setBalanceErrorMessage] = useState<string | undefined>(undefined);
+  const [networkHealth, setNetworkHealth] = useState<NetworkHealth>({
+    status: 'rpc_unreachable',
+    message: 'Checking network status...',
+    isReady: false,
+  });
+
   const [vaultData, setVaultData] = useState<AppContextType['vaultData']>(null);
-  const [userBalances, setUserBalances] = useState<AppContextType['userBalances']>(null);
+  const [userBalances, setUserBalances] = useState<UserBalances | null>(null);
   const [auctions, setAuctions] = useState<AuctionView[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
@@ -195,7 +216,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         setChainId(targetChainId);
       } catch (switchError: any) {
-        // Code 4902 means the chain has not been added to the wallet yet
         if (switchError?.code === 4902 && targetChainId === MONAD_TESTNET_CHAIN_ID) {
           try {
             await ethereum.request({
@@ -253,6 +273,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const refreshData = useCallback(async () => {
+    setBalanceStatus('loading');
+    setBalanceErrorMessage(undefined);
+
+    const addresses = getActiveAddresses(chainId);
+    const health = await checkNetworkHealth(publicClient, addresses, chainId);
+    setNetworkHealth(health);
+
+    if (!health.isReady) {
+      const bStatus: BalanceLoadStatus = health.status === 'rpc_unreachable' ? 'error' : 'not-deployed';
+      setBalanceStatus(bStatus);
+      setBalanceErrorMessage(health.message);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const vOverview = await fetchVaultOverview(publicClient);
       setVaultData(vOverview);
@@ -263,13 +298,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const mAuctions = await fetchMarketAuctions(publicClient);
       setAuctions(mAuctions);
 
+      setBalanceStatus('loaded');
       setLastUpdated(Date.now());
     } catch (err) {
       console.error('Failed to load contract state:', err);
+      setBalanceStatus('error');
+      setBalanceErrorMessage(err instanceof Error ? err.message : 'Failed to query smart contract state.');
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient, accountAddress]);
+  }, [publicClient, accountAddress, chainId]);
 
   // Initial fetch and automatic refresh on account change
   useEffect(() => {
@@ -303,8 +341,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     connectInjected,
     switchChain,
     useInjectedWallet: useInjected,
-    vaultData,
+    networkHealth,
+    balanceStatus,
+    balanceErrorMessage,
     userBalances,
+    retryLoad: refreshData,
+    vaultData,
     auctions,
     isLoading,
     lastUpdated,

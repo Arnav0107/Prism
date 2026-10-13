@@ -25,6 +25,7 @@ export interface ContractAddresses {
   PrincipalToken: Address;
   EpochCoupon: Address;
   PrismAuction: Address;
+  MockReferencePrice?: Address;
 }
 
 export interface DeploymentManifest {

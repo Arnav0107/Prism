@@ -42,7 +42,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         dividendSource = new MockDividendSource();
 
         // Default vault for regression tests initialized with demoMode = true
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 
@@ -111,7 +111,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         assertEq(principal.balanceOf(alice), 0);
 
         // Owner can also seal explicitly before any deposit
-        PrismVault freshVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        PrismVault freshVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         freshVault.createEpoch(T0 + 30 days, T0 + 35 days);
         assertFalse(freshVault.isSealed());
         freshVault.seal();
@@ -124,7 +124,7 @@ contract RegressionTest is Test, IERC1155Receiver {
     // Regression B -> H2: Owner cannot lock principal (MAX_EPOCHS & MAX_EPOCH_HORIZON)
     // =========================================================================
     function test_regression_B_H2() public {
-        PrismVault boundedVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        PrismVault boundedVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
 
         // Cannot create epoch beyond MAX_EPOCH_HORIZON (400 days)
         vm.expectRevert(abi.encodeWithSelector(PrismVault.EpochHorizonExceeded.selector, T0 + 401 days, T0 + 400 days));
@@ -156,7 +156,7 @@ contract RegressionTest is Test, IERC1155Receiver {
     // =========================================================================
     function test_regression_E_H5() public {
         // Vault initialized with demoMode = false (production path)
-        PrismVault prodVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false);
+        PrismVault prodVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false, false);
         assertFalse(prodVault.demoMode(), "demoMode must initialize false when specified");
 
         prodVault.createEpoch(T0 + 30 days, T0 + 35 days);
@@ -179,7 +179,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         prodVault.setDemoMode(true);
 
         // Vault initialized with demoMode = true (testnet path) can disable it, but never re-enable
-        PrismVault testVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        PrismVault testVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         assertTrue(testVault.demoMode());
         testVault.setDemoMode(false);
         assertFalse(testVault.demoMode());
@@ -202,7 +202,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, usdcPerShare);
         dividendSource.lockEvent(1);
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare, bool locked) =
+        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare,, bool locked) =
             dividendSource.getEvent(1);
         assertTrue(declared);
         assertTrue(locked);
@@ -276,7 +276,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         assertEq(usdc.balanceOf(alice), 200e6, "Coupon holder paid full dividend");
 
         // Test grace expiry path: fresh vault where grace period lapses without funding
-        PrismVault graceVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        PrismVault graceVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         uint256 curTime = block.timestamp;
         graceVault.createEpoch(curTime + 10 days, curTime + 15 days);
         vm.prank(bob);
@@ -315,7 +315,7 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // 2. Owner corrects the declaration to DIVIDEND before locking (not bricked!)
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
-        (bool decl, IDividendSource.ActionType act, uint256 amt, bool lck) = dividendSource.getEvent(1);
+        (bool decl, IDividendSource.ActionType act, uint256 amt,, bool lck) = dividendSource.getEvent(1);
         assertTrue(decl);
         assertFalse(lck);
         assertEq(uint256(act), uint256(IDividendSource.ActionType.DIVIDEND));
@@ -323,7 +323,7 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // 3. Owner locks the event
         dividendSource.lockEvent(1);
-        (,,, lck) = dividendSource.getEvent(1);
+        (,,,, lck) = dividendSource.getEvent(1);
         assertTrue(lck, "Event must be locked");
 
         // Locked declaration is immutable: attempting to re-declare or re-lock reverts
@@ -405,7 +405,7 @@ contract RegressionTest is Test, IERC1155Receiver {
     // Regression G -> M2: Bounded loops and gas limits
     // =========================================================================
     function test_regression_G_M2() public {
-        PrismVault maxVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        PrismVault maxVault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         for (uint256 i = 1; i <= 16; ++i) {
             maxVault.createEpoch(T0 + (i * 20 days), T0 + (i * 20 days) + 5 days);
         }
@@ -439,7 +439,7 @@ contract RegressionTest is Test, IERC1155Receiver {
     // =========================================================================
     function test_regression_M3() public {
         MockFeeOnTransferStock feeStock = new MockFeeOnTransferStock();
-        PrismVault fotVault = new PrismVault(address(feeStock), address(usdc), address(dividendSource), true);
+        PrismVault fotVault = new PrismVault(address(feeStock), address(usdc), address(dividendSource), true, false);
         fotVault.createEpoch(block.timestamp + 30 days, block.timestamp + 35 days);
 
         feeStock.mint(address(this), 1_000e18);

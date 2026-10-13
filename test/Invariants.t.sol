@@ -65,7 +65,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
 
         uint256 count = vault.epochCount();
         for (uint256 i = 1; i <= count; ++i) {
-            (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) = dividendSource.getEvent(i);
+            (bool declared, IDividendSource.ActionType aType, uint256 payout,, bool locked) = dividendSource.getEvent(i);
             if (locked) {
                 hasBeenLocked[i] = true;
                 lockedPayout[i] = payout;
@@ -174,7 +174,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         PrismVault.EpochInfo memory info = vault.getEpoch(epochId);
         if (info.funded) return;
 
-        (bool declared, IDividendSource.ActionType aType, uint256 currentPayout, bool locked) =
+        (bool declared, IDividendSource.ActionType aType, uint256 currentPayout,, bool locked) =
             dividendSource.getEvent(epochId);
         if (!declared) {
             currentPayout = bound(dividendSeed, 0.1e6, 5e6);
@@ -242,7 +242,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         PrismVault.EpochInfo memory info = vault.getEpoch(epochId);
         if (info.funded || block.timestamp >= info.exDate) return;
 
-        (,,, bool locked) = dividendSource.getEvent(epochId);
+        (,,,, bool locked) = dividendSource.getEvent(epochId);
         if (!locked) return;
 
         address seller = actors[actorSeed % 3];
@@ -338,7 +338,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         if (count == 0) return;
         uint256 epochId = (epochSeed % count) + 1;
 
-        (,,, bool locked) = dividendSource.getEvent(epochId);
+        (,,,, bool locked) = dividendSource.getEvent(epochId);
         if (locked) return;
 
         uint256 payout = bound(dividendSeed, 0.05e6, 10e6);
@@ -351,7 +351,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         if (count == 0) return;
         uint256 epochId = (epochSeed % count) + 1;
 
-        (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) =
+        (bool declared, IDividendSource.ActionType aType, uint256 payout,, bool locked) =
             dividendSource.getEvent(epochId);
         if (!declared || locked) return;
 
@@ -436,7 +436,7 @@ contract InvariantsTest is Test, IERC1155Receiver {
 
         vm.startPrank(owner);
         dividendSource = new MockDividendSource();
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
         auction = new PrismAuction(address(coupon), address(usdc), address(vault));
@@ -580,7 +580,7 @@ contract InvariantsTest is Test, IERC1155Receiver {
     function invariant_lockedDividendCannotChange() public view {
         uint256 count = vault.epochCount();
         for (uint256 e = 1; e <= count; ++e) {
-            (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) = dividendSource.getEvent(e);
+            (bool declared, IDividendSource.ActionType aType, uint256 payout,, bool locked) = dividendSource.getEvent(e);
             if (locked) {
                 assertTrue(declared, "Invariant (b) Violated: Locked event must be declared");
                 if (handler.hasBeenLocked(e)) {

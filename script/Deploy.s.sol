@@ -11,6 +11,8 @@ import {IDividendSource} from "../contracts/IDividendSource.sol";
 import {PrismVault} from "../contracts/PrismVault.sol";
 import {PrismAuction} from "../contracts/PrismAuction.sol";
 import {EpochCoupon} from "../contracts/EpochCoupon.sol";
+import {MockReferencePrice} from "../contracts/MockReferencePrice.sol";
+import {PrismFactory} from "../contracts/PrismFactory.sol";
 
 /**
  * @title DeployScript
@@ -38,13 +40,15 @@ contract DeployScript is Script {
         MockStock stock = new MockStock();
         MockUSDC usdc = new MockUSDC();
         MockDividendSource dividendSource = new MockDividendSource();
+        MockReferencePrice referencePrice = new MockReferencePrice(100_000_000); // $100.00 default stock price
 
         console.log("MockStock deployed at:          ", address(stock));
         console.log("MockUSDC deployed at:           ", address(usdc));
         console.log("DividendSource deployed at:     ", address(dividendSource));
+        console.log("ReferencePrice deployed at:     ", address(referencePrice));
 
         // 2. Deploy PrismVault
-        PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode);
+        PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode, false);
 
         address ptAddress = address(vault.principalToken());
         address ecAddress = address(vault.epochCoupon());
@@ -56,6 +60,22 @@ contract DeployScript is Script {
         // 3. Deploy PrismAuction
         PrismAuction auction = new PrismAuction(ecAddress, address(usdc), address(vault));
         console.log("PrismAuction deployed at:       ", address(auction));
+
+        // 3b. Deploy PrismFactory & demo secondary series
+        PrismFactory factory = new PrismFactory();
+        console.log("PrismFactory deployed at:       ", address(factory));
+
+        MockStock stockTsla = new MockStock();
+        stockTsla.mint(deployer, 1_000_000e18);
+        (address vaultTsla, , , address auctionTsla) = 
+            factory.createSeries(address(stockTsla), address(usdc), address(dividendSource), demoMode, false, deployer);
+        PrismVault(vaultTsla).acceptOwnership();
+        PrismAuction(auctionTsla).acceptOwnership();
+        for (uint256 i = 1; i <= 4; ++i) {
+            PrismVault(vaultTsla).createEpoch(block.timestamp + (i * 90 days), block.timestamp + (i * 90 days) + 5 days);
+        }
+        PrismVault(vaultTsla).seal();
+        console.log("Created & sealed secondary series (mTSLA) via PrismFactory");
 
         // 4. Create 4 quarterly epochs before any deposit
         for (uint256 i = 1; i <= 4; ++i) {
@@ -106,6 +126,8 @@ contract DeployScript is Script {
         vm.serializeAddress(contractsObj, "PrismVault", address(vault));
         vm.serializeAddress(contractsObj, "PrincipalToken", ptAddress);
         vm.serializeAddress(contractsObj, "EpochCoupon", ecAddress);
+        vm.serializeAddress(contractsObj, "MockReferencePrice", address(referencePrice));
+        vm.serializeAddress(contractsObj, "PrismFactory", address(factory));
         string memory contractsJson = vm.serializeAddress(contractsObj, "PrismAuction", address(auction));
 
         string memory rootObj = "root";

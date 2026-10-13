@@ -13,6 +13,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {PrismVault} from "./PrismVault.sol";
 import {IDividendSource} from "./IDividendSource.sol";
+import {IReferencePrice} from "./IReferencePrice.sol";
 
 /**
  * @title PrismAuction
@@ -104,6 +105,8 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
     error AuctionExtendsPastExDate(uint256 auctionEndTime, uint256 exDate);
     error NotGuardian();
     error NotPendingGuardian();
+    error InvalidReferencePrice();
+    error StaleReferencePrice(uint256 updatedAt, uint256 currentTimestamp);
 
     constructor(address epochCoupon_, address mockUSDC_, address prismVault_) Ownable(msg.sender) {
         if (epochCoupon_ == address(0) || mockUSDC_ == address(0) || prismVault_ == address(0)) {
@@ -196,6 +199,37 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
     }
 
     /**
+     * @notice Creates multiple Dutch auctions on behalf of a specific seller address (e.g. via PrismZap).
+     * @dev Escrows coupons from msg.sender, but sets seller and payout destination to `seller`.
+     * @param seller Beneficiary address that owns the auctions and receives purchase proceeds.
+     * @param epochIds Array of target epoch identifiers.
+     * @param amounts Array of coupon amounts to escrow per epoch.
+     * @param startPrices Array of starting prices per epoch.
+     * @param floorPrices Array of floor prices per epoch.
+     * @param duration Duration in seconds for all created auctions.
+     * @return auctionIds Array of assigned auction identifiers.
+     */
+    function createBatchAuctionsFor(
+        address seller,
+        uint256[] calldata epochIds,
+        uint256[] calldata amounts,
+        uint256[] calldata startPrices,
+        uint256[] calldata floorPrices,
+        uint256 duration
+    ) external nonReentrant whenNotPaused returns (uint256[] memory auctionIds) {
+        if (seller == address(0)) revert ZeroAddress();
+        uint256 total = epochIds.length;
+        if (total != amounts.length || total != startPrices.length || total != floorPrices.length) {
+            revert ArrayLengthMismatch();
+        }
+
+        auctionIds = new uint256[](total);
+        for (uint256 i = 0; i < total; ++i) {
+            auctionIds[i] = _createAuctionFor(seller, epochIds[i], amounts[i], startPrices[i], floorPrices[i], duration);
+        }
+    }
+
+    /**
      * @notice Computes deterministic current price of an auction with linear per-second decay.
      * @param auctionId Target auction identifier.
      * @return price Current price in MockUSDC base units per 1e18 coupons.
@@ -243,7 +277,7 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
             revert EpochPastExDate(auction.epochId, epoch.exDate, block.timestamp);
         }
 
-        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(auction.epochId);
+        (bool declared,,,, bool locked) = prismVault.dividendSource().getEvent(auction.epochId);
         if (!declared || !locked) {
             revert DividendNotLocked(auction.epochId);
         }
@@ -340,6 +374,17 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
         internal
         returns (uint256 auctionId)
     {
+        return _createAuctionFor(msg.sender, epochId, amount, startPrice, floorPrice, duration);
+    }
+
+    function _createAuctionFor(
+        address seller,
+        uint256 epochId,
+        uint256 amount,
+        uint256 startPrice,
+        uint256 floorPrice,
+        uint256 duration
+    ) internal returns (uint256 auctionId) {
         if (amount == 0) revert ZeroAmount();
         if (startPrice < floorPrice || floorPrice == 0 || startPrice > type(uint128).max) revert InvalidPrice();
         if (duration == 0 || duration > MAX_AUCTION_DURATION) revert InvalidDuration();
@@ -357,14 +402,14 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
             revert AuctionExtendsPastExDate(block.timestamp + duration, epoch.exDate);
         }
 
-        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(epochId);
+        (bool declared,,,, bool locked) = prismVault.dividendSource().getEvent(epochId);
         if (!declared || !locked) {
             revert DividendNotLocked(epochId);
         }
 
         auctionId = nextAuctionId++;
         auctions[auctionId] = Auction({
-            seller: msg.sender,
+            seller: seller,
             epochId: epochId,
             amount: amount,
             initialAmount: amount,
@@ -379,6 +424,30 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
 
         epochCoupon.safeTransferFrom(msg.sender, address(this), epochId, amount, "");
 
-        emit AuctionCreated(auctionId, msg.sender, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
+        emit AuctionCreated(auctionId, seller, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
+    }
+
+    /**
+     * @notice Computes implied quarterly dividend yield in basis points using an on-chain reference stock price.
+     * @dev Yield (bps) = (VWAP * 10,000) / referenceStockPrice.
+     *      Reverts if referencePrice is zero, returns zero price, or is older than 1 day.
+     * @param epochId Target epoch identifier.
+     * @param referencePrice Address of contract implementing IReferencePrice.
+     * @return yieldBps Implied quarterly yield in basis points (100 bps = 1.00%).
+     */
+    function impliedQuarterlyYieldBps(uint256 epochId, address referencePrice)
+        external
+        view
+        returns (uint256 yieldBps)
+    {
+        if (referencePrice == address(0)) revert InvalidReferencePrice();
+        (uint256 refPrice, uint256 updatedAt) = IReferencePrice(referencePrice).price();
+        if (refPrice == 0) revert InvalidReferencePrice();
+        if (block.timestamp > updatedAt + 1 days) {
+            revert StaleReferencePrice(updatedAt, block.timestamp);
+        }
+
+        uint256 currentVwap = vwap(epochId);
+        yieldBps = (currentVwap * 10_000) / refPrice;
     }
 }

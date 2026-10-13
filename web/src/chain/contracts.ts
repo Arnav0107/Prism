@@ -32,6 +32,7 @@ import PrincipalTokenAbi from './abi/PrincipalToken.json';
 import MockStockAbi from './abi/MockStock.json';
 import MockUSDCAbi from './abi/MockUSDC.json';
 import MockDividendSourceAbi from './abi/MockDividendSource.json';
+import MockReferencePriceAbi from './abi/MockReferencePrice.json';
 
 export { MONAD_TESTNET_CHAIN_ID, LOCAL_CHAIN_ID, monadTestnetChain };
 export const DEFAULT_RPC_URL = 'http://127.0.0.1:8545';
@@ -58,6 +59,8 @@ export interface ContractAddresses {
   PrincipalToken: Address;
   EpochCoupon: Address;
   PrismAuction: Address;
+  MockReferencePrice?: Address;
+  PrismFactory?: Address;
 }
 
 export function getActiveChainId(): number {
@@ -94,6 +97,12 @@ export const DEPLOYED_ADDRESSES: ContractAddresses = {
   },
   get PrismAuction() {
     return getActiveAddresses().PrismAuction;
+  },
+  get MockReferencePrice() {
+    return getActiveAddresses().MockReferencePrice ?? '0x0000000000000000000000000000000000000000';
+  },
+  get PrismFactory() {
+    return getActiveAddresses().PrismFactory ?? '0x0000000000000000000000000000000000000000';
   },
 };
 
@@ -143,6 +152,9 @@ export interface EpochData {
   isAwaitingFunding?: boolean;
   isDefaulted?: boolean;
   graceEndsAt?: bigint;
+  grossUsdcPerShare?: bigint;
+  withholdingBps?: number;
+  netUsdcPerShare?: bigint;
 }
 
 export function validateNonNegativeAmount(amount: bigint, fieldName: string = 'Amount'): void {
@@ -409,6 +421,25 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
     } catch {
       // Fallback if not supported
     }
+    let grossUsdcPerShare = 0n;
+    let withholdingBps = 0;
+    let netUsdcPerShare = 0n;
+    try {
+      const divSource = getContract({
+        address: DEPLOYED_ADDRESSES.MockDividendSource,
+        abi: MockDividendSourceAbi,
+        client: publicClient,
+      });
+      const ev = (await divSource.read.getEvent([BigInt(i)])) as [boolean, number, bigint, bigint, boolean];
+      if (ev[0]) {
+        grossUsdcPerShare = ev[2];
+        withholdingBps = Number(ev[3]);
+        netUsdcPerShare = (grossUsdcPerShare * BigInt(10000 - withholdingBps)) / 10000n;
+      }
+    } catch {
+      // Fallback if not configured
+    }
+
     epochs.push({
       epochId: i,
       exDate: epochInfo[0],
@@ -420,6 +451,9 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
       isAwaitingFunding,
       isDefaulted,
       graceEndsAt,
+      grossUsdcPerShare,
+      withholdingBps,
+      netUsdcPerShare,
     });
   }
 
@@ -547,6 +581,24 @@ export async function fetchEpochMarketData(publicClient: PublicClient, epochId: 
   };
 }
 
+export async function fetchReferencePrice(
+  publicClient: PublicClient
+): Promise<{ price: bigint; updatedAt: bigint } | null> {
+  const addr = DEPLOYED_ADDRESSES.MockReferencePrice;
+  if (!addr || addr === '0x0000000000000000000000000000000000000000') return null;
+  try {
+    const contract = getContract({
+      address: addr,
+      abi: MockReferencePriceAbi,
+      client: publicClient,
+    });
+    const [price, updatedAt] = (await contract.read.price()) as [bigint, bigint];
+    return { price, updatedAt };
+  } catch {
+    return null;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Adapter: Core Contract Write Operations
 // -----------------------------------------------------------------------------
@@ -664,6 +716,32 @@ export async function createBatchAuctions(
       durationSeconds,
     ]
   );
+}
+
+export async function zapDepositAndSellDividends(
+  walletClient: WalletClient,
+  amount: bigint,
+  epochIds: number[],
+  startPrices: bigint[],
+  floorPrices: bigint[],
+  durationSeconds: bigint
+): Promise<{ depositHash: Hash; batchAuctionHash?: Hash }> {
+  validateNonNegativeAmount(amount, 'Deposit amount');
+  const depositHash = await depositShares(walletClient, amount);
+  let batchAuctionHash: Hash | undefined;
+  if (epochIds.length > 0) {
+    await approveCouponsForAuction(walletClient, true);
+    const amounts = epochIds.map(() => amount);
+    batchAuctionHash = await createBatchAuctions(
+      walletClient,
+      epochIds,
+      amounts,
+      startPrices,
+      floorPrices,
+      durationSeconds
+    );
+  }
+  return { depositHash, batchAuctionHash };
 }
 
 export async function buyAuction(

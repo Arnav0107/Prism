@@ -11,7 +11,7 @@ The Prism protocol contracts and web application are experimental prototypes dev
 ## Automated Verification & Test Coverage Summary
 
 The protocol has undergone comprehensive multi-layered automated verification:
-- **73 Foundry tests** across 6 suites (`PrismVault.t.sol`, `PrismAuction.t.sol`, `Regression.t.sol`, `ReAudit.t.sol`, `Invariants.t.sol`, `CoverageExpansion.t.sol`), all passing 100%.
+- **83 Foundry tests** across 8 suites (`PrismVault.t.sol`, `PrismAuction.t.sol`, `Regression.t.sol`, `ReAudit.t.sol`, `Invariants.t.sol`, `CoverageExpansion.t.sol`, `WithholdingTax.t.sol`, `ImpliedYield.t.sol`), all passing 100%.
 - **Stateful Invariant Fuzzing**: 7 system invariants executed across 12,800 calls per run fuzzing user interactions and privileged owner actions.
 - **Test Coverage**:
   - `PrismVault.sol`: **100.00% Line Coverage (154/154)**, **100.00% Branch Coverage (49/49)**.

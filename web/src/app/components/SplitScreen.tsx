@@ -12,6 +12,7 @@ import {
   computeRecombineState,
   formatBalanceStateValue,
   DEPLOYED_ADDRESSES,
+  zapDepositAndSellDividends,
 } from '../../chain/contracts';
 import { decodeContractError } from '../../chain/errors';
 import './SplitScreen.css';
@@ -146,6 +147,53 @@ export const SplitScreen: React.FC = () => {
       updateToast(toastId, {
         type: 'error',
         title: 'Deposit Failed',
+        message: decodeContractError(err),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleZap = async () => {
+    if (!walletClient || !vaultData) return;
+    setIsSubmitting(true);
+    const toastId = addToast({
+      type: 'pending',
+      title: 'Zap: Deposit & Listing Coupons',
+      message: `Depositing ${depositInput} mSTOCK and listing dividends on auction...`,
+    });
+
+    try {
+      if (needsApproval) {
+        await approveStock(walletClient, parsedDeposit);
+      }
+      const liveEpochs = vaultData.epochs.filter(
+        (e) => !e.funded && e.exDate > BigInt(Math.floor(Date.now() / 1000))
+      );
+      const epochIds = liveEpochs.map((e) => e.epochId);
+      const startPrices = liveEpochs.map(() => 1_500_000n);
+      const floorPrices = liveEpochs.map(() => 1_000_000n);
+      const durationSeconds = 7n * 86400n;
+
+      await zapDepositAndSellDividends(
+        walletClient,
+        parsedDeposit,
+        epochIds,
+        startPrices,
+        floorPrices,
+        durationSeconds
+      );
+
+      updateToast(toastId, {
+        type: 'success',
+        title: 'Zap Complete',
+        message: `Deposited ${depositInput} mSTOCK and listed coupons for ${epochIds.length} epochs.`,
+      });
+      await refreshData();
+    } catch (err) {
+      updateToast(toastId, {
+        type: 'error',
+        title: 'Zap Failed',
         message: decodeContractError(err),
       });
     } finally {
@@ -343,6 +391,15 @@ export const SplitScreen: React.FC = () => {
               disabled={depositState.disabled}
             >
               {depositState.buttonText}
+            </button>
+            <button
+              type="button"
+              className="prism-btn prism-btn--secondary"
+              onClick={handleZap}
+              disabled={depositState.disabled}
+              title="Deposit collateral, receive PT, and immediately list dividend coupons on Dutch auction for immediate upfront liquidity"
+            >
+              ⚡ ZAP: DEPOSIT & SELL MY NEXT 4 DIVIDENDS
             </button>
           </div>
         </section>

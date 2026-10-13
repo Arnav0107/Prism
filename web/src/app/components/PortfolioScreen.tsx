@@ -165,6 +165,7 @@ export const PortfolioScreen: React.FC = () => {
                 <th scope="col">CYCLE EPOCH</th>
                 <th scope="col">EX-DATE / PAY-DATE</th>
                 <th scope="col">YOUR COUPONS</th>
+                <th scope="col">DIVIDEND (GROSS / TAX / NET)</th>
                 <th scope="col">STATUS</th>
                 <th scope="col">POOL FUNDED (USDC)</th>
                 <th scope="col">YOUR EXACT PAYOUT</th>
@@ -189,6 +190,21 @@ export const PortfolioScreen: React.FC = () => {
                     </td>
                     <td>
                       <strong>{formatStock(row.couponBalance)} EC</strong>
+                    </td>
+                    <td>
+                      {row.grossUsdcPerShare && row.grossUsdcPerShare > 0n ? (
+                        <div style={{ fontSize: '0.82rem', lineHeight: 1.3 }}>
+                          <div>Gross: ${formatUsdc(row.grossUsdcPerShare)}</div>
+                          <div style={{ color: 'var(--text-muted, #888)' }}>
+                            Tax: {((row.withholdingBps ?? 0) / 100).toFixed(1)}%
+                          </div>
+                          <div style={{ fontWeight: 600 }}>
+                            Net: ${formatUsdc(row.netUsdcPerShare ?? row.grossUsdcPerShare)}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="prism-tag prism-tag--neutral">—</span>
+                      )}
                     </td>
                     <td>
                       <span className={`prism-tag prism-tag--${row.statusType}`}>

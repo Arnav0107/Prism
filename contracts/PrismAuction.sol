@@ -6,9 +6,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {PrismVault} from "./PrismVault.sol";
+import {IDividendSource} from "./IDividendSource.sol";
 
 /**
  * @title PrismAuction
@@ -16,13 +20,15 @@ import {PrismVault} from "./PrismVault.sol";
  *         Sellers escrow coupons and price linearly decays per second from startPrice
  *         to floorPrice, allowing immediate liquidity and price discovery for dividends.
  */
-contract PrismAuction is ERC1155Holder, ReentrancyGuard {
+contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Precision scalar matching 1 whole share / coupon (18 decimals).
     uint256 public constant COUPON_PRECISION = 1e18;
     /// @notice Minimum fill size (0.001 coupon) unless taking full auction remainder.
     uint256 public constant MIN_FILL = 1e15;
+    /// @notice Maximum allowed auction duration (30 days).
+    uint256 public constant MAX_AUCTION_DURATION = 30 days;
 
     struct Auction {
         address seller;
@@ -43,10 +49,13 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     uint256 public nextAuctionId = 1;
     mapping(uint256 => Auction) public auctions;
 
-    // Per-epoch market analytics (volume-weighted average price tracking)
+    // Per-epoch market analytics (volume-weighted average price tracking - informational only)
     mapping(uint256 => uint256) public epochNotional;
     mapping(uint256 => uint256) public epochVolume;
     mapping(uint256 => uint256) public activeAuctionCount;
+
+    address public guardian;
+    address public pendingGuardian;
 
     event AuctionCreated(
         uint256 indexed auctionId,
@@ -73,6 +82,9 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         uint256 indexed auctionId, address indexed seller, uint256 indexed epochId, uint256 refundAmount
     );
 
+    event GuardianTransferStarted(address indexed previousGuardian, address indexed newGuardian);
+    event GuardianTransferred(address indexed previousGuardian, address indexed newGuardian);
+
     error ZeroAddress();
     error ZeroAmount();
     error InvalidPrice();
@@ -87,14 +99,55 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     error InsufficientAuctionLiquidity(uint256 requested, uint256 available);
     error OnlySeller();
     error FillBelowMinimum(uint256 amount, uint256 minFill);
+    error DividendNotLocked(uint256 epochId);
+    error SelfTrade();
+    error AuctionExtendsPastExDate(uint256 auctionEndTime, uint256 exDate);
+    error NotGuardian();
+    error NotPendingGuardian();
 
-    constructor(address epochCoupon_, address mockUSDC_, address prismVault_) {
+    constructor(address epochCoupon_, address mockUSDC_, address prismVault_) Ownable(msg.sender) {
         if (epochCoupon_ == address(0) || mockUSDC_ == address(0) || prismVault_ == address(0)) {
             revert ZeroAddress();
         }
         epochCoupon = IERC1155(epochCoupon_);
         mockUSDC = IERC20(mockUSDC_);
         prismVault = PrismVault(prismVault_);
+    }
+
+    /**
+     * @notice Starts 2-step guardian transfer (Owner only).
+     * @param newGuardian Nominated guardian address.
+     */
+    function transferGuardian(address newGuardian) external onlyOwner {
+        if (newGuardian == address(0)) revert ZeroAddress();
+        pendingGuardian = newGuardian;
+        emit GuardianTransferStarted(guardian, newGuardian);
+    }
+
+    /**
+     * @notice Accepts guardian role (Pending guardian only).
+     */
+    function acceptGuardian() external {
+        if (msg.sender != pendingGuardian) revert NotPendingGuardian();
+        emit GuardianTransferred(guardian, pendingGuardian);
+        guardian = pendingGuardian;
+        pendingGuardian = address(0);
+    }
+
+    /**
+     * @notice Pause auction creation and purchases (Guardian or Owner). Cancel remains open.
+     */
+    function pause() external {
+        if (msg.sender != guardian && msg.sender != owner()) revert NotGuardian();
+        _pause();
+    }
+
+    /**
+     * @notice Unpause auction actions (Guardian or Owner).
+     */
+    function unpause() external {
+        if (msg.sender != guardian && msg.sender != owner()) revert NotGuardian();
+        _unpause();
     }
 
     /**
@@ -109,6 +162,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
     function createAuction(uint256 epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration)
         external
         nonReentrant
+        whenNotPaused
         returns (uint256 auctionId)
     {
         auctionId = _createAuction(epochId, amount, startPrice, floorPrice, duration);
@@ -129,7 +183,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         uint256[] calldata startPrices,
         uint256[] calldata floorPrices,
         uint256 duration
-    ) external nonReentrant returns (uint256[] memory auctionIds) {
+    ) external nonReentrant whenNotPaused returns (uint256[] memory auctionIds) {
         uint256 total = epochIds.length;
         if (total != amounts.length || total != startPrices.length || total != floorPrices.length) {
             revert ArrayLengthMismatch();
@@ -166,13 +220,15 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
     /**
      * @notice Purchases coupon tokens from an active auction at the live decaying price.
+     * @dev Blocks self-trading and changeable dividends. Pausable by guardian.
      * @param auctionId Target auction identifier.
      * @param amount Amount of coupons to buy (partial fills supported).
      * @param maxPrice Maximum acceptable price per 1e18 coupons (slippage guard).
      */
-    function buy(uint256 auctionId, uint256 amount, uint256 maxPrice) external nonReentrant {
+    function buy(uint256 auctionId, uint256 amount, uint256 maxPrice) external nonReentrant whenNotPaused {
         Auction storage auction = auctions[auctionId];
         if (!auction.active) revert AuctionNotActive(auctionId);
+        if (msg.sender == auction.seller) revert SelfTrade();
         if (amount == 0) revert ZeroAmount();
         if (amount < MIN_FILL && amount != auction.amount) {
             revert FillBelowMinimum(amount, MIN_FILL);
@@ -185,6 +241,11 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         if (epoch.funded) revert EpochAlreadyFunded(auction.epochId);
         if (block.timestamp >= epoch.exDate) {
             revert EpochPastExDate(auction.epochId, epoch.exDate, block.timestamp);
+        }
+
+        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(auction.epochId);
+        if (!declared || !locked) {
+            revert DividendNotLocked(auction.epochId);
         }
 
         uint256 price = currentPrice(auctionId);
@@ -212,6 +273,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
     /**
      * @notice Cancels an active auction and returns remaining escrowed coupons to the seller.
+     * @dev Never pausable — sellers can always withdraw their inventory.
      * @param auctionId Target auction identifier.
      */
     function cancel(uint256 auctionId) external nonReentrant {
@@ -231,6 +293,7 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
 
     /**
      * @notice Computes volume-weighted average price (VWAP) for an epoch.
+     * @dev VWAP is strictly informational and does not represent an unmanipulable on-chain oracle.
      * @param epochId Target epoch identifier.
      * @return vwapPrice Volume-weighted clearing price in MockUSDC base units per 1e18 coupons.
      */
@@ -278,8 +341,8 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         returns (uint256 auctionId)
     {
         if (amount == 0) revert ZeroAmount();
-        if (startPrice < floorPrice || floorPrice == 0) revert InvalidPrice();
-        if (duration == 0) revert InvalidDuration();
+        if (startPrice < floorPrice || floorPrice == 0 || startPrice > type(uint128).max) revert InvalidPrice();
+        if (duration == 0 || duration > MAX_AUCTION_DURATION) revert InvalidDuration();
 
         if (epochId == 0 || epochId > prismVault.epochCount()) {
             revert EpochDoesNotExist(epochId);
@@ -290,8 +353,14 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         if (block.timestamp >= epoch.exDate) {
             revert EpochPastExDate(epochId, epoch.exDate, block.timestamp);
         }
+        if (block.timestamp + duration > epoch.exDate) {
+            revert AuctionExtendsPastExDate(block.timestamp + duration, epoch.exDate);
+        }
 
-        epochCoupon.safeTransferFrom(msg.sender, address(this), epochId, amount, "");
+        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(epochId);
+        if (!declared || !locked) {
+            revert DividendNotLocked(epochId);
+        }
 
         auctionId = nextAuctionId++;
         auctions[auctionId] = Auction({
@@ -307,6 +376,8 @@ contract PrismAuction is ERC1155Holder, ReentrancyGuard {
         });
 
         activeAuctionCount[epochId]++;
+
+        epochCoupon.safeTransferFrom(msg.sender, address(this), epochId, amount, "");
 
         emit AuctionCreated(auctionId, msg.sender, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
     }

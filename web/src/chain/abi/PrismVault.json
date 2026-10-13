@@ -79,6 +79,13 @@
   },
   {
     "type": "function",
+    "name": "acceptGuardian",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "acceptOwnership",
     "inputs": [],
     "outputs": [],
@@ -187,6 +194,25 @@
   },
   {
     "type": "function",
+    "name": "epochDefaulted",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "epochs",
     "inputs": [
       {
@@ -259,6 +285,11 @@
         "internalType": "bool"
       },
       {
+        "name": "defaulted",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
         "name": "graceEndsAt",
         "type": "uint256",
         "internalType": "uint256"
@@ -308,6 +339,19 @@
             "internalType": "uint256"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "guardian",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -367,6 +411,39 @@
   {
     "type": "function",
     "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "paused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingGuardian",
     "inputs": [],
     "outputs": [
       {
@@ -458,6 +535,19 @@
   },
   {
     "type": "function",
+    "name": "transferGuardian",
+    "inputs": [
+      {
+        "name": "newGuardian",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "transferOwnership",
     "inputs": [
       {
@@ -466,6 +556,13 @@
         "internalType": "address"
       }
     ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "unpause",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -590,6 +687,19 @@
   },
   {
     "type": "event",
+    "name": "FundingDefaulted",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "FundingGraceActive",
     "inputs": [
       {
@@ -603,6 +713,44 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GuardianTransferStarted",
+    "inputs": [
+      {
+        "name": "previousGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GuardianTransferred",
+    "inputs": [
+      {
+        "name": "previousGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -640,6 +788,19 @@
         "name": "newOwner",
         "type": "address",
         "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Paused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
         "internalType": "address"
       }
     ],
@@ -685,6 +846,19 @@
   },
   {
     "type": "event",
+    "name": "Unpaused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "VaultSealed",
     "inputs": [],
     "anonymous": false
@@ -692,6 +866,11 @@
   {
     "type": "error",
     "name": "CannotEnableDemoMode",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CollateralShortfall",
     "inputs": []
   },
   {
@@ -704,6 +883,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "EnforcedPause",
+    "inputs": []
   },
   {
     "type": "error",
@@ -819,6 +1003,11 @@
   },
   {
     "type": "error",
+    "name": "ExpectedPause",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "FutureEpochsRemain",
     "inputs": [
       {
@@ -845,6 +1034,11 @@
   },
   {
     "type": "error",
+    "name": "NoEpochs",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NonDividendActionType",
     "inputs": [
       {
@@ -853,6 +1047,16 @@
         "internalType": "enum IDividendSource.ActionType"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NotGuardian",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotPendingGuardian",
+    "inputs": []
   },
   {
     "type": "error",

@@ -14,15 +14,23 @@ import {EpochCoupon} from "../contracts/EpochCoupon.sol";
 
 /**
  * @title DeployScript
- * @notice Deploys Prism contracts on Monad testnet, initializes and seals 4 quarterly epochs,
+ * @notice Deploys Prism contracts on Monad testnet or local Anvil, initializes and seals 4 quarterly epochs,
  *         declares and locks corporate action dividends, approves auction escrow, mints test funds,
- *         and serializes all contract addresses to deployments/monad-testnet.json.
+ *         and serializes contract addresses to appropriate deployment file.
  */
 contract DeployScript is Script {
     function run() external {
+        if (block.chainid != 31337 && block.chainid != 10143) {
+            revert("Unsupported chain id: only 31337 (Anvil) and 10143 (Monad Testnet) supported");
+        }
+
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         console.log("Deploying Prism with deployer:", deployer);
+
+        // Read DEMO_MODE: default true only for chain 31337, false otherwise
+        bool demoMode = vm.envOr("DEMO_MODE", block.chainid == 31337);
+        console.log("Deploying with demoMode:", demoMode);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -35,13 +43,8 @@ contract DeployScript is Script {
         console.log("MockUSDC deployed at:           ", address(usdc));
         console.log("DividendSource deployed at:     ", address(dividendSource));
 
-        // 2. Deploy PrismVault with demoMode = true for testnet evaluation
-        PrismVault vault = new PrismVault(
-            address(stock),
-            address(usdc),
-            address(dividendSource),
-            true // demoMode enabled for testnet deployment
-        );
+        // 2. Deploy PrismVault
+        PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode);
 
         address ptAddress = address(vault.principalToken());
         address ecAddress = address(vault.epochCoupon());
@@ -85,9 +88,17 @@ contract DeployScript is Script {
         stock.approve(address(vault), type(uint256).max);
         console.log("Approved PrismAuction for EpochCoupon and MockUSDC");
 
+        // 9. Governance: transfer ownership if OWNER env var is set
+        address targetOwner = vm.envOr("OWNER", address(0));
+        if (targetOwner != address(0) && targetOwner != deployer) {
+            vault.transferOwnership(targetOwner);
+            dividendSource.transferOwnership(targetOwner);
+            console.log("Initiated 2-step ownership transfer to:", targetOwner);
+        }
+
         vm.stopBroadcast();
 
-        // 9. Serialize and write deployment addresses to deployments/monad-testnet.json
+        // 10. Serialize and write deployment addresses
         string memory contractsObj = "contracts";
         vm.serializeAddress(contractsObj, "MockStock", address(stock));
         vm.serializeAddress(contractsObj, "MockUSDC", address(usdc));
@@ -104,9 +115,11 @@ contract DeployScript is Script {
         if (block.chainid == 31337) {
             vm.writeJson(finalJson, "./web/src/chain/deployments.local.json");
             console.log("Serialized deployments to web/src/chain/deployments.local.json");
-        } else {
+        } else if (block.chainid == 10143) {
             vm.writeJson(finalJson, "./deployments/monad-testnet.json");
             console.log("Serialized deployments to deployments/monad-testnet.json");
+        } else {
+            revert("Unsupported chain id for deployment artifact writing");
         }
         console.log("Deployment completed successfully.");
     }

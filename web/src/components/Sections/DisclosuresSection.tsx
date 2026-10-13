@@ -1,18 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Section, Button, Badge } from '../ui';
-import { isDeployedOnMonad } from '../../config/deployments';
+import { verifyMonadDeployment } from '../../config/deployments';
 import './DisclosuresSection.css';
 
 interface ItemSpec {
   name: string;
   type: string;
-  status: 'LIVE ON MONAD' | 'TESTNET — NOT YET DEPLOYED' | 'TESTNET MOCK' | 'PLANNED';
+  status: 'LIVE ON MONAD' | 'NOT YET DEPLOYED / UNVERIFIED' | 'TESTNET MOCK' | 'PLANNED';
   description: string;
   fileLink: string;
 }
 
 export const DisclosuresSection: React.FC = () => {
-  const contractStatus = isDeployedOnMonad ? 'LIVE ON MONAD' : 'TESTNET — NOT YET DEPLOYED';
+  const [monadVerified, setMonadVerified] = useState<boolean>(false);
+
+  useEffect(() => {
+    verifyMonadDeployment().then(setMonadVerified);
+  }, []);
+
+  const contractStatus: 'LIVE ON MONAD' | 'NOT YET DEPLOYED / UNVERIFIED' = monadVerified
+    ? 'LIVE ON MONAD'
+    : 'NOT YET DEPLOYED / UNVERIFIED';
 
   const items: ItemSpec[] = [
     {
@@ -75,7 +83,7 @@ export const DisclosuresSection: React.FC = () => {
                 <span className="prism-disclosures__item-type font-mono">{item.type}</span>
                 <h3 className="prism-disclosures__item-name font-mono">{item.name}</h3>
               </div>
-              <Badge variant={item.status === 'LIVE ON MONAD' ? 'accent' : item.status === 'TESTNET — NOT YET DEPLOYED' ? 'neutral' : 'neutral'}>
+              <Badge variant={item.status === 'LIVE ON MONAD' ? 'accent' : 'neutral'}>
                 {item.status}
               </Badge>
             </div>
@@ -101,9 +109,9 @@ export const DisclosuresSection: React.FC = () => {
       <div className="prism-disclosures__audit-banner">
         <div className="prism-disclosures__audit-copy">
           <span className="font-mono prism-disclosures__audit-tag">INVARIANT FUZZING & AUTOMATED TESTS</span>
-          <h4 className="prism-disclosures__audit-title">46 Automated Foundry Tests & Stateful Invariant Suites Passing</h4>
+          <h4 className="prism-disclosures__audit-title">73 Automated Foundry Tests & 7 Stateful Invariant Suites Passing</h4>
           <p className="prism-disclosures__audit-text">
-            Enforces 4 stateful protocol invariants across 256 runs & 50 depths (12,800 handler actions): stock-principal 1:1 conservation, coupon supply bounds, USDC dividend claim reserves, and auction escrow reconciliation.
+            Enforces 7 stateful protocol invariants across 256 runs & 50 depths (12,800 handler actions per run): stock-principal 1:1 conservation, live coupon supply equality, USDC dividend solvency, auction escrow reconciliation, claim bounds, immutable dividend locks, and non-overredeeming principal redemptions.
           </p>
         </div>
         <div className="prism-disclosures__audit-action">

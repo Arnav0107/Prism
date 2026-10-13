@@ -27,8 +27,33 @@ jobs:
       - name: Run Forge build
         run: forge build --sizes
 
-      - name: Run Forge tests
+      - name: Run Forge tests with 1000 fuzz runs
         run: forge test -vvv
+        env:
+          FOUNDRY_FUZZ_RUNS: 1000
+
+  slither:
+    name: Static Analysis (Slither)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Slither
+        run: pip install slither-analyzer==0.11.6
+
+      - name: Run Slither Static Analysis
+        run: slither . --filter-paths "lib|test|script" --checklist || true
 
   web:
     name: Web App CI
@@ -47,6 +72,10 @@ jobs:
       - name: Install dependencies
         working-directory: web
         run: npm ci
+
+      - name: Run npm audit (high severity threshold)
+        working-directory: web
+        run: npm audit --audit-level=high
 
       - name: Run web unit tests
         working-directory: web

@@ -17,7 +17,8 @@ import {PrismAuction} from "../contracts/PrismAuction.sol";
 
 /**
  * @title ProtocolHandler
- * @notice Stateful handler driving random multi-actor lifecycle operations across Prism.
+ * @notice Stateful handler driving random multi-actor lifecycle operations across Prism,
+ *         including privileged owner operations.
  */
 contract ProtocolHandler is Test, IERC1155Receiver {
     MockStock public stock;
@@ -28,10 +29,20 @@ contract ProtocolHandler is Test, IERC1155Receiver {
     EpochCoupon public coupon;
     PrismAuction public auction;
 
+    address public owner;
     address[3] public actors;
     uint256 public constant T0 = 1_000_000;
 
     uint256[] public activeAuctionIds;
+
+    // Tracking for invariants
+    mapping(uint256 => uint256) public totalClaimedUSDC;
+    mapping(uint256 => bool) public hasBeenLocked;
+    mapping(uint256 => uint256) public lockedPayout;
+    mapping(uint256 => IDividendSource.ActionType) public lockedActionType;
+
+    mapping(address => uint256) public totalStockRedeemed;
+    mapping(address => uint256) public totalPrincipalMinted;
 
     constructor(
         MockStock _stock,
@@ -39,6 +50,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         MockDividendSource _dividendSource,
         PrismVault _vault,
         PrismAuction _auction,
+        address _owner,
         address[3] memory _actors
     ) {
         stock = _stock;
@@ -48,7 +60,18 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
         auction = _auction;
+        owner = _owner;
         actors = _actors;
+
+        uint256 count = vault.epochCount();
+        for (uint256 i = 1; i <= count; ++i) {
+            (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) = dividendSource.getEvent(i);
+            if (locked) {
+                hasBeenLocked[i] = true;
+                lockedPayout[i] = payout;
+                lockedActionType[i] = aType;
+            }
+        }
     }
 
     function onERC1155Received(address, address, uint256, uint256, bytes calldata)
@@ -73,7 +96,10 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
+    // --- User Actions ---
+
     function deposit(uint256 actorSeed, uint256 amountSeed) external {
+        if (vault.paused()) return;
         address actor = actors[actorSeed % 3];
         uint256 amount = bound(amountSeed, 1e18, 500e18);
 
@@ -82,6 +108,8 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         stock.approve(address(vault), amount);
         vault.deposit(amount);
         vm.stopPrank();
+
+        totalPrincipalMinted[actor] += amount;
     }
 
     function recombine(uint256 actorSeed, uint256 amountSeed) external {
@@ -94,13 +122,13 @@ contract ProtocolHandler is Test, IERC1155Receiver {
 
         // Check if any epoch is awaiting funding (blocks recombine)
         for (uint256 i = 1; i <= total; ++i) {
-            (, bool awaiting,) = vault.fundingStatus(i);
+            (, bool awaiting,,) = vault.fundingStatus(i);
             if (awaiting) return;
         }
 
         // Must have sufficient coupons for all live epochs
         for (uint256 i = 1; i <= total; ++i) {
-            (bool live,,) = vault.fundingStatus(i);
+            (bool live,,,) = vault.fundingStatus(i);
             if (live) {
                 uint256 cBal = coupon.balanceOf(actor, i);
                 if (cBal < maxRecombine) {
@@ -116,35 +144,69 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         vault.recombine(amount);
     }
 
+    function redeemPrincipal(uint256 actorSeed, uint256 amountSeed) external {
+        address actor = actors[actorSeed % 3];
+        uint256 bal = principal.balanceOf(actor);
+        if (bal == 0) return;
+
+        // Check if any live or awaiting funding epochs remain
+        uint256 total = vault.epochCount();
+        for (uint256 i = 1; i <= total; ++i) {
+            (bool live, bool awaiting,,) = vault.fundingStatus(i);
+            if (live || awaiting) return;
+        }
+
+        uint256 amount = bound(amountSeed, 1, bal);
+        uint256 stockBefore = stock.balanceOf(actor);
+
+        vm.prank(actor);
+        vault.redeemPrincipal(amount);
+
+        uint256 stockGained = stock.balanceOf(actor) - stockBefore;
+        totalStockRedeemed[actor] += stockGained;
+    }
+
     function fundEpoch(uint256 epochSeed, uint256 dividendSeed) external {
-        uint256 epochCount = vault.epochCount();
-        if (epochCount == 0) return;
-        uint256 epochId = (epochSeed % epochCount) + 1;
+        uint256 count = vault.epochCount();
+        if (count == 0) return;
+        uint256 epochId = (epochSeed % count) + 1;
 
         PrismVault.EpochInfo memory info = vault.getEpoch(epochId);
         if (info.funded) return;
 
-        uint256 usdcPerShare = bound(dividendSeed, 0.1e6, 5e6);
-        dividendSource.declareEvent(epochId, IDividendSource.ActionType.DIVIDEND, usdcPerShare);
-        dividendSource.lockEvent(epochId);
+        (bool declared, IDividendSource.ActionType aType, uint256 currentPayout, bool locked) =
+            dividendSource.getEvent(epochId);
+        if (!declared) {
+            currentPayout = bound(dividendSeed, 0.1e6, 5e6);
+            aType = IDividendSource.ActionType.DIVIDEND;
+            vm.prank(owner);
+            dividendSource.declareEvent(epochId, aType, currentPayout);
+        }
+        if (!locked) {
+            vm.prank(owner);
+            dividendSource.lockEvent(epochId);
+            hasBeenLocked[epochId] = true;
+            lockedPayout[epochId] = currentPayout;
+            lockedActionType[epochId] = aType;
+        }
 
         uint256 currentSupply = coupon.totalSupply(epochId);
-        uint256 payout = (currentSupply * usdcPerShare) / 1e18;
+        uint256 totalPayout = (currentSupply * currentPayout) / 1e18;
 
         address funder = actors[0];
-        if (payout > 0) {
-            usdc.mint(funder, payout);
+        if (totalPayout > 0) {
+            usdc.mint(funder, totalPayout);
         }
         vm.startPrank(funder);
-        usdc.approve(address(vault), payout);
+        usdc.approve(address(vault), totalPayout);
         vault.fundEpoch(epochId);
         vm.stopPrank();
     }
 
     function claim(uint256 actorSeed, uint256 epochSeed, uint256 amountSeed) external {
-        uint256 epochCount = vault.epochCount();
-        if (epochCount == 0) return;
-        uint256 epochId = (epochSeed % epochCount) + 1;
+        uint256 count = vault.epochCount();
+        if (count == 0) return;
+        uint256 epochId = (epochSeed % count) + 1;
 
         PrismVault.EpochInfo memory info = vault.getEpoch(epochId);
         if (!info.funded) return;
@@ -154,8 +216,13 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         if (bal == 0) return;
 
         uint256 amount = bound(amountSeed, 1, bal);
+        uint256 usdcBefore = usdc.balanceOf(actor);
+
         vm.prank(actor);
         vault.claim(epochId, amount);
+
+        uint256 gained = usdc.balanceOf(actor) - usdcBefore;
+        totalClaimedUSDC[epochId] += gained;
     }
 
     function createAuction(
@@ -166,21 +233,30 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         uint256 floorPriceSeed,
         uint256 durationSeed
     ) external {
-        uint256 epochCount = vault.epochCount();
-        if (epochCount == 0) return;
-        uint256 epochId = (epochSeed % epochCount) + 1;
+        if (auction.paused()) return;
+
+        uint256 count = vault.epochCount();
+        if (count == 0) return;
+        uint256 epochId = (epochSeed % count) + 1;
 
         PrismVault.EpochInfo memory info = vault.getEpoch(epochId);
         if (info.funded || block.timestamp >= info.exDate) return;
+
+        (,,, bool locked) = dividendSource.getEvent(epochId);
+        if (!locked) return;
 
         address seller = actors[actorSeed % 3];
         uint256 bal = coupon.balanceOf(seller, epochId);
         if (bal < auction.MIN_FILL()) return;
 
+        uint256 maxDur = info.exDate - block.timestamp;
+        if (maxDur > 30 days) maxDur = 30 days;
+        if (maxDur < 60) return;
+
         uint256 amount = bound(amountSeed, auction.MIN_FILL(), bal);
         uint256 floorPrice = bound(floorPriceSeed, 0.05e6, 2e6);
         uint256 startPrice = bound(startPriceSeed, floorPrice, 10e6);
-        uint256 duration = bound(durationSeed, 60, 7 days);
+        uint256 duration = bound(durationSeed, 60, maxDur);
 
         vm.startPrank(seller);
         coupon.setApprovalForAll(address(auction), true);
@@ -191,6 +267,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
     }
 
     function buyAuction(uint256 actorSeed, uint256 auctionIdxSeed, uint256 buyAmountSeed) external {
+        if (auction.paused()) return;
         if (activeAuctionIds.length == 0) return;
         uint256 idx = auctionIdxSeed % activeAuctionIds.length;
         uint256 auctionId = activeAuctionIds[idx];
@@ -212,7 +289,13 @@ contract ProtocolHandler is Test, IERC1155Receiver {
             buyAmount = bound(buyAmountSeed, minFill, a.amount);
         }
 
+        // Avoid self-trade (R1)
         address buyer = actors[actorSeed % 3];
+        if (buyer == a.seller) {
+            buyer = actors[(actorSeed + 1) % 3];
+        }
+        if (buyer == a.seller) return;
+
         uint256 price = auction.currentPrice(auctionId);
         uint256 totalCost = Math.mulDiv(buyAmount, price, 1e18, Math.Rounding.Ceil);
 
@@ -248,6 +331,72 @@ contract ProtocolHandler is Test, IERC1155Receiver {
         vm.warp(block.timestamp + jump);
     }
 
+    // --- Privileged Owner Actions (Fuzzed) ---
+
+    function ownerDeclareEvent(uint256 epochSeed, uint256 dividendSeed) external {
+        uint256 count = vault.epochCount();
+        if (count == 0) return;
+        uint256 epochId = (epochSeed % count) + 1;
+
+        (,,, bool locked) = dividendSource.getEvent(epochId);
+        if (locked) return;
+
+        uint256 payout = bound(dividendSeed, 0.05e6, 10e6);
+        vm.prank(owner);
+        dividendSource.declareEvent(epochId, IDividendSource.ActionType.DIVIDEND, payout);
+    }
+
+    function ownerLockEvent(uint256 epochSeed) external {
+        uint256 count = vault.epochCount();
+        if (count == 0) return;
+        uint256 epochId = (epochSeed % count) + 1;
+
+        (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) =
+            dividendSource.getEvent(epochId);
+        if (!declared || locked) return;
+
+        vm.prank(owner);
+        dividendSource.lockEvent(epochId);
+
+        hasBeenLocked[epochId] = true;
+        lockedPayout[epochId] = payout;
+        lockedActionType[epochId] = aType;
+    }
+
+    function ownerSeal() external {
+        if (vault.isSealed() || vault.epochCount() == 0) return;
+        vm.prank(owner);
+        vault.seal();
+    }
+
+    function ownerSetDemoMode(bool newMode) external {
+        if (!vault.demoMode()) return; // Cannot turn demoMode back on once off
+        if (newMode == false) {
+            vm.prank(owner);
+            vault.setDemoMode(false);
+        }
+    }
+
+    function ownerTogglePauseVault() external {
+        vm.startPrank(owner);
+        if (vault.paused()) {
+            vault.unpause();
+        } else {
+            vault.pause();
+        }
+        vm.stopPrank();
+    }
+
+    function ownerTogglePauseAuction() external {
+        vm.startPrank(owner);
+        if (auction.paused()) {
+            auction.unpause();
+        } else {
+            auction.pause();
+        }
+        vm.stopPrank();
+    }
+
     function getActiveAuctionIds() external view returns (uint256[] memory) {
         return activeAuctionIds;
     }
@@ -260,7 +409,7 @@ contract ProtocolHandler is Test, IERC1155Receiver {
 
 /**
  * @title InvariantsTest
- * @notice Stateful invariant test suite asserting system-wide solvency invariants.
+ * @notice Stateful invariant test suite asserting system-wide solvency and safety invariants.
  */
 contract InvariantsTest is Test, IERC1155Receiver {
     MockStock internal stock;
@@ -272,6 +421,7 @@ contract InvariantsTest is Test, IERC1155Receiver {
     PrismAuction internal auction;
     ProtocolHandler internal handler;
 
+    address internal owner = makeAddr("owner");
     address internal actor1 = makeAddr("actor1");
     address internal actor2 = makeAddr("actor2");
     address internal actor3 = makeAddr("actor3");
@@ -283,12 +433,12 @@ contract InvariantsTest is Test, IERC1155Receiver {
 
         stock = new MockStock();
         usdc = new MockUSDC();
-        dividendSource = new MockDividendSource();
 
+        vm.startPrank(owner);
+        dividendSource = new MockDividendSource();
         vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
-
         auction = new PrismAuction(address(coupon), address(usdc), address(vault));
 
         // Create 4 distribution epochs
@@ -297,8 +447,15 @@ contract InvariantsTest is Test, IERC1155Receiver {
         vault.createEpoch(T0 + 270 days, T0 + 275 days);
         vault.createEpoch(T0 + 360 days, T0 + 365 days);
 
+        // Pre-lock events for epochs 1 and 2
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
+        dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 2e6);
+        dividendSource.lockEvent(2);
+        vm.stopPrank();
+
         address[3] memory actors = [actor1, actor2, actor3];
-        handler = new ProtocolHandler(stock, usdc, dividendSource, vault, auction, actors);
+        handler = new ProtocolHandler(stock, usdc, dividendSource, vault, auction, owner, actors);
 
         targetContract(address(handler));
     }
@@ -337,17 +494,17 @@ contract InvariantsTest is Test, IERC1155Receiver {
     }
 
     // =========================================================================
-    // Invariant 2: For each live epoch, coupon.totalSupply(e) <= principal.totalSupply()
+    // Invariant 2: For each live epoch, coupon.totalSupply(e) == principal.totalSupply()
     // =========================================================================
     function invariant_couponSupplyBoundedByPrincipalSupply() public view {
         uint256 count = vault.epochCount();
         for (uint256 e = 1; e <= count; ++e) {
-            (bool live,,) = vault.fundingStatus(e);
+            (bool live,,,) = vault.fundingStatus(e);
             if (live) {
-                assertLe(
+                assertEq(
                     coupon.totalSupply(e),
                     principal.totalSupply(),
-                    "Invariant 2 Violated: Live EpochCoupon total supply exceeds PrincipalToken supply"
+                    "Invariant 2 Violated: Live EpochCoupon total supply != PrincipalToken supply"
                 );
             }
         }
@@ -395,6 +552,59 @@ contract InvariantsTest is Test, IERC1155Receiver {
                 coupon.balanceOf(address(auction), e),
                 sumActive,
                 "Invariant 4 Violated: Escrowed coupon balance != sum of remaining amounts of active auctions"
+            );
+        }
+    }
+
+    // =========================================================================
+    // Invariant (a): Total claimed USDC for an epoch never exceeds totalFundedUSDC
+    // =========================================================================
+    function invariant_claimedUSDCNeverExceedsFunded() public view {
+        uint256 count = vault.epochCount();
+        for (uint256 e = 1; e <= count; ++e) {
+            PrismVault.EpochInfo memory info = vault.getEpoch(e);
+            uint256 claimed = handler.totalClaimedUSDC(e);
+            if (info.funded) {
+                assertLe(
+                    claimed, info.totalFundedUSDC, "Invariant (a) Violated: Total claimed USDC exceeds totalFundedUSDC"
+                );
+            } else {
+                assertEq(claimed, 0, "Invariant (a) Violated: Claimed USDC on unfunded epoch must be 0");
+            }
+        }
+    }
+
+    // =========================================================================
+    // Invariant (b): A locked dividend event cannot change
+    // =========================================================================
+    function invariant_lockedDividendCannotChange() public view {
+        uint256 count = vault.epochCount();
+        for (uint256 e = 1; e <= count; ++e) {
+            (bool declared, IDividendSource.ActionType aType, uint256 payout, bool locked) = dividendSource.getEvent(e);
+            if (locked) {
+                assertTrue(declared, "Invariant (b) Violated: Locked event must be declared");
+                if (handler.hasBeenLocked(e)) {
+                    assertEq(payout, handler.lockedPayout(e), "Invariant (b) Violated: Locked payout changed");
+                    assertEq(
+                        uint8(aType),
+                        uint8(handler.lockedActionType(e)),
+                        "Invariant (b) Violated: Locked actionType changed"
+                    );
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // Invariant (c): No address can redeem more stock than its principal balance
+    // =========================================================================
+    function invariant_noAddressCanRedeemMoreStockThanPrincipalBalance() public view {
+        for (uint256 i = 0; i < 3; ++i) {
+            address actor = handler.actors(i);
+            assertLe(
+                handler.totalStockRedeemed(actor),
+                handler.totalPrincipalMinted(actor),
+                "Invariant (c) Violated: Actor redeemed more stock than total principal minted"
             );
         }
     }

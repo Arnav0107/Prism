@@ -1,4 +1,4 @@
-import { type Address, defineChain, type Chain, type PublicClient } from 'viem';
+import { type Address, defineChain, type Chain, type PublicClient, createPublicClient, http } from 'viem';
 import monadDeploymentsRaw from '../../../deployments/monad-testnet.json';
 import localDeploymentsRaw from '../chain/deployments.local.json';
 
@@ -73,7 +73,41 @@ export function validateContractAddresses(addresses: Partial<ContractAddresses> 
 }
 
 /**
- * Indicates if the contracts have been deployed on Monad testnet.
+ * Verifies on-chain bytecode at the PrismVault and PrismAuction addresses via Monad RPC.
+ * Static address presence is not enough; requires active deployed bytecode.
+ */
+export async function verifyMonadDeployment(client?: PublicClient): Promise<boolean> {
+  const vaultAddr = monadDeployments?.contracts?.PrismVault;
+  const auctionAddr = monadDeployments?.contracts?.PrismAuction;
+
+  if (!isRealAddress(vaultAddr) || !isRealAddress(auctionAddr)) {
+    return false;
+  }
+
+  try {
+    const pubClient =
+      client ??
+      createPublicClient({
+        chain: monadTestnetChain,
+        transport: http('https://testnet-rpc.monad.xyz'),
+      });
+
+    const [vaultCode, auctionCode] = await Promise.all([
+      pubClient.getBytecode({ address: vaultAddr as Address }),
+      pubClient.getBytecode({ address: auctionAddr as Address }),
+    ]);
+
+    const hasVault = Boolean(vaultCode && vaultCode !== '0x' && vaultCode.length > 2);
+    const hasAuction = Boolean(auctionCode && auctionCode !== '0x' && auctionCode.length > 2);
+
+    return hasVault && hasAuction;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Indicates if the contracts have real address entries configured for Monad testnet.
  */
 export const isDeployedOnMonad: boolean = Boolean(
   isRealAddress(monadDeployments?.contracts?.PrismVault) &&

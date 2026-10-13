@@ -326,7 +326,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         auction.createAuction(1, 50e18, 1e6, 0.5e6, 1000);
 
         // Declare and fund epoch 2
-        (,,, bool isLocked2) = dividendSource.getEvent(2);
+        (,,,, bool isLocked2) = dividendSource.getEvent(2);
         if (!isLocked2) {
             dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
             dividendSource.lockEvent(2);
@@ -407,7 +407,7 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         uint256 auctionId = auction.createAuction(1, 100e18, 1_000_000, 200_000, 1_000);
 
         // Fund epoch 1
-        (,,, bool isLocked1) = dividendSource.getEvent(1);
+        (,,,, bool isLocked1) = dividendSource.getEvent(1);
         if (!isLocked1) {
             dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
             dividendSource.lockEvent(1);

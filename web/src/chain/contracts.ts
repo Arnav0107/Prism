@@ -143,6 +143,9 @@ export interface EpochData {
   isAwaitingFunding?: boolean;
   isDefaulted?: boolean;
   graceEndsAt?: bigint;
+  grossUsdcPerShare?: bigint;
+  withholdingBps?: number;
+  netUsdcPerShare?: bigint;
 }
 
 export function validateNonNegativeAmount(amount: bigint, fieldName: string = 'Amount'): void {
@@ -409,6 +412,25 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
     } catch {
       // Fallback if not supported
     }
+    let grossUsdcPerShare = 0n;
+    let withholdingBps = 0;
+    let netUsdcPerShare = 0n;
+    try {
+      const divSource = getContract({
+        address: DEPLOYED_ADDRESSES.MockDividendSource,
+        abi: MockDividendSourceAbi,
+        client: publicClient,
+      });
+      const ev = (await divSource.read.getEvent([BigInt(i)])) as [boolean, number, bigint, bigint, boolean];
+      if (ev[0]) {
+        grossUsdcPerShare = ev[2];
+        withholdingBps = Number(ev[3]);
+        netUsdcPerShare = (grossUsdcPerShare * BigInt(10000 - withholdingBps)) / 10000n;
+      }
+    } catch {
+      // Fallback if not configured
+    }
+
     epochs.push({
       epochId: i,
       exDate: epochInfo[0],
@@ -420,6 +442,9 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
       isAwaitingFunding,
       isDefaulted,
       graceEndsAt,
+      grossUsdcPerShare,
+      withholdingBps,
+      netUsdcPerShare,
     });
   }
 

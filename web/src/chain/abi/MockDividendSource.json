@@ -36,6 +36,34 @@
   },
   {
     "type": "function",
+    "name": "declareEvent",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actionType",
+        "type": "uint8",
+        "internalType": "enum IDividendSource.ActionType"
+      },
+      {
+        "name": "usdcPerShare",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "withholdingBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "getEvent",
     "inputs": [
       {
@@ -61,9 +89,33 @@
         "internalType": "uint256"
       },
       {
+        "name": "withholdingBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
         "name": "locked",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getNetPayout",
+    "inputs": [
+      {
+        "name": "epochId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "netUsdcPerShare",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -148,6 +200,12 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "withholdingBps",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -229,6 +287,17 @@
     "type": "error",
     "name": "InvalidEpochId",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidWithholdingBps",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

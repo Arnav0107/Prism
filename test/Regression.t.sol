@@ -202,7 +202,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, usdcPerShare);
         dividendSource.lockEvent(1);
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare, bool locked) =
+        (bool declared, IDividendSource.ActionType actionType, uint256 declaredUsdcPerShare,, bool locked) =
             dividendSource.getEvent(1);
         assertTrue(declared);
         assertTrue(locked);
@@ -315,7 +315,7 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // 2. Owner corrects the declaration to DIVIDEND before locking (not bricked!)
         dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
-        (bool decl, IDividendSource.ActionType act, uint256 amt, bool lck) = dividendSource.getEvent(1);
+        (bool decl, IDividendSource.ActionType act, uint256 amt,, bool lck) = dividendSource.getEvent(1);
         assertTrue(decl);
         assertFalse(lck);
         assertEq(uint256(act), uint256(IDividendSource.ActionType.DIVIDEND));
@@ -323,7 +323,7 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // 3. Owner locks the event
         dividendSource.lockEvent(1);
-        (,,, lck) = dividendSource.getEvent(1);
+        (,,,, lck) = dividendSource.getEvent(1);
         assertTrue(lck, "Event must be locked");
 
         // Locked declaration is immutable: attempting to re-declare or re-lock reverts

@@ -240,15 +240,21 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
             revert ExDateNotReached(epochId, epoch.exDate, block.timestamp);
         }
 
-        (bool declared, IDividendSource.ActionType actionType, uint256 usdcPerShare, bool locked) =
-            dividendSource.getEvent(epochId);
+        (
+            bool declared,
+            IDividendSource.ActionType actionType,
+            uint256 grossUsdcPerShare,
+            uint256 withholdingBps,
+            bool locked
+        ) = dividendSource.getEvent(epochId);
 
         if (!declared) revert DividendNotDeclared(epochId);
         if (!locked) revert EventNotLocked(epochId);
         if (actionType != IDividendSource.ActionType.DIVIDEND) revert NonDividendActionType(actionType);
 
         uint256 currentSupply = epochCoupon.totalSupply(epochId);
-        uint256 requiredUSDC = (currentSupply * usdcPerShare) / SHARE_PRECISION;
+        uint256 netUsdcPerShare = (grossUsdcPerShare * (10000 - withholdingBps)) / 10000;
+        uint256 requiredUSDC = (currentSupply * netUsdcPerShare) / SHARE_PRECISION;
 
         epoch.funded = true;
         epoch.totalFundedUSDC = requiredUSDC;

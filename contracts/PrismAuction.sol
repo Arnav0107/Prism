@@ -243,7 +243,7 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
             revert EpochPastExDate(auction.epochId, epoch.exDate, block.timestamp);
         }
 
-        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(auction.epochId);
+        (bool declared,,,, bool locked) = prismVault.dividendSource().getEvent(auction.epochId);
         if (!declared || !locked) {
             revert DividendNotLocked(auction.epochId);
         }
@@ -357,7 +357,7 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
             revert AuctionExtendsPastExDate(block.timestamp + duration, epoch.exDate);
         }
 
-        (bool declared,,, bool locked) = prismVault.dividendSource().getEvent(epochId);
+        (bool declared,,,, bool locked) = prismVault.dividendSource().getEvent(epochId);
         if (!declared || !locked) {
             revert DividendNotLocked(epochId);
         }

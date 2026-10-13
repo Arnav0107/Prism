@@ -18,6 +18,7 @@ import {
   isDeployedOnMonad,
   checkNetworkHealth,
   type NetworkHealth,
+  MONAD_EXPLORER_URL,
 } from '../../config/deployments';
 
 export type AppTab = 'split' | 'calc' | 'market' | 'curve' | 'portfolio';
@@ -228,7 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   chainName: 'Monad Testnet',
                   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
                   rpcUrls: ['https://testnet-rpc.monad.xyz'],
-                  blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+                  blockExplorerUrls: [MONAD_EXPLORER_URL],
                 },
               ],
             });

@@ -236,7 +236,14 @@ forge test --gas-report
    ```bash
    cp .env.example .env
    ```
-2. Configure your `RPC_URL` and `PRIVATE_KEY`.
+2. Configure your `RPC_URL`, `PRIVATE_KEY`, and `DEMO_MODE`:
+   > [!IMPORTANT]
+   > **Demo Mode on Monad Testnet**
+   > `script/Deploy.s.sol` defaults `DEMO_MODE` to `true` **only** on local Anvil (chain 31337) and `false` on Monad Testnet (chain 10143).
+   > For a live demonstration, `DEMO_MODE=true` **must be set explicitly** in `.env`.
+   > Without `DEMO_MODE=true`, calling `fundEpoch` will revert with `ExDateNotReached` until the epoch's ex-date (90 days post-deployment for Q1).
+   > Note that `PrismVault.setDemoMode` can only permanently **disable** demo mode; it can never re-enable it.
+
 3. Execute the deployment script:
    ```bash
    forge script script/Deploy.s.sol:DeployScript \
@@ -246,9 +253,12 @@ forge test --gas-report
 
 The script will:
 1. Deploy `MockStock`, `MockUSDC`, and `MockDividendSource`.
-2. Deploy `PrismVault` (which automatically deploys `PrincipalToken` and `EpochCoupon`).
-3. Initialize 4 quarterly epochs (Q1 to Q4).
-4. Mint test balances of 1,000,000 `mSTOCK` and 1,000,000 `mUSDC` to the deployer.
+2. Deploy `MockReferencePrice` oracle and `PrismFactory`.
+3. Deploy `PrismVault` (which automatically deploys `PrincipalToken` and `EpochCoupon`).
+4. Deploy `PrismAuction`.
+5. Initialize 4 quarterly epochs (Q1 to Q4).
+6. Mint test balances of 1,000,000 `mSTOCK` and 1,000,000 `mUSDC` to the deployer.
+7. Write output addresses to `deployments/monad-testnet.json`.
 
 ---
 
@@ -410,6 +420,32 @@ Located in [`keeper/`](keeper), a deterministic Node.js daemon built with Viem t
   npm run dry-run   # Simulates all sweeps without broadcasting transactions
   npm start         # Live execution loop with event subscription & periodic sweep
   ```
+
+#### Running against Monad Testnet
+To operate the keeper daemon against Monad Testnet (Chain ID 10143):
+1. **Configure Environment** (`keeper/.env`):
+   ```env
+   RPC_URL=https://testnet-rpc.monad.xyz
+   CHAIN_ID=10143
+   PRIVATE_KEY=0x<YOUR_DEDICATED_KEEPER_PRIVATE_KEY>
+   POLL_INTERVAL_MS=5000
+   MAX_FEE_PER_GAS_GWEI=50
+   ```
+   - Core contract addresses are **auto-loaded** from `deployments/monad-testnet.json`. Explicit env vars (`PRISM_VAULT_ADDRESS`, etc.) can override them if needed.
+2. **Keeper Wallet Funding**:
+   - The keeper wallet executes live on-chain transactions and **must be funded with native MON** on Monad Testnet (via https://testnet.monad.xyz or https://faucet.monad.xyz).
+   - Use a dedicated keeper key; never use the deployer private key for keeper automation.
+3. **Simulate First (`--dry-run`)**:
+   - Always run with `--dry-run` first to verify that the daemon connects, detects due epochs/auctions, and passes transaction simulations without broadcasting:
+     ```bash
+     npm run dry-run
+     # Or: npx tsx src/index.ts --dry-run
+     ```
+4. **Start Continuous Keeper**:
+   ```bash
+   npm start
+   ```
+
 - **Operational Profile**: Run by market makers, institutional protocol operators, or automated bots. If offline, users can execute calls directly on-chain via the frontend; no funds are locked or compromised.
 
 ### 4. Live On-Chain Activity Feed

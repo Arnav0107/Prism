@@ -4,7 +4,7 @@ import { logger } from './logger.js';
 
 async function main() {
   try {
-    const config = loadConfig();
+    const config = await loadConfig();
     const keeper = new PrismKeeper(config);
 
     const shutdown = async () => {

@@ -158,6 +158,25 @@ export const SplitScreen: React.FC = () => {
       return;
     }
 
+    // Pre-flight checks: balance and allowance
+    if (stockBalance < parsedDeposit) {
+      addToast({
+        type: 'error',
+        title: 'Insufficient Balance',
+        message: 'Not enough mSTOCK, use the faucet',
+      });
+      return;
+    }
+
+    if (stockAllowance < parsedDeposit) {
+      addToast({
+        type: 'error',
+        title: 'Approval Required',
+        message: 'Approve mSTOCK first',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = addToast({
       type: 'pending',

@@ -134,8 +134,20 @@
   color: var(--color-text);
 }
 
-.prism-wallet-bar__bal-divider {
-  color: var(--color-border);
+.prism-wallet-bar__stale-badge {
+  font-size: var(--text-2xs, 10px);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 1px 4px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.4; }
 }
 
 @media (max-width: 768px) {

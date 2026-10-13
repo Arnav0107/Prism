@@ -275,6 +275,9 @@ export function getMonadPublicClient(rpcUrl: string = MONAD_RPC_URL): PublicClie
   return createPublicClient({
     chain: monadTestnetChain,
     transport: http(rpcUrl),
+    batch: {
+      multicall: true,
+    },
   });
 }
 
@@ -303,15 +306,20 @@ export function getDevWalletClient(
   });
 }
 
-export function getInjectedWalletClient(chainId: number = LOCAL_CHAIN_ID): WalletClient | null {
+export function getInjectedWalletClient(
+  account?: Address | null,
+  chainId: number = LOCAL_CHAIN_ID
+): WalletClient | null {
   if (typeof window === 'undefined' || !(window as unknown as { ethereum?: unknown }).ethereum) {
     return null;
   }
+  if (!account) {
+    return null;
+  }
   const chain = chainId === MONAD_TESTNET_CHAIN_ID ? monadTestnetChain : localAnvilChain;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createWalletClient({
+    account,
     chain,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transport: custom((window as any).ethereum),
   });
 }
@@ -322,7 +330,8 @@ export async function callWriteContract(
   address: Address,
   abi: readonly unknown[],
   functionName: string,
-  args?: readonly unknown[]
+  args?: readonly unknown[],
+  publicClientOverride?: PublicClient
 ): Promise<Hash> {
   const targetChainId = getActiveChainId();
 
@@ -341,8 +350,12 @@ export async function callWriteContract(
     );
   }
 
-  const pubClient = getPublicClient(targetChainId);
-  const account = (walletClient as any).account;
+  const account = walletClient.account ?? (walletClient as any).account;
+  if (!account) {
+    throw new Error('Wallet account not available, reconnect your wallet');
+  }
+
+  const pubClient = publicClientOverride ?? getPublicClient(targetChainId);
   const targetChain = targetChainId === MONAD_TESTNET_CHAIN_ID ? monadTestnetChain : localAnvilChain;
 
   // Simulate contract call before sending to catch custom errors and revert conditions
@@ -480,16 +493,20 @@ export async function fetchUserBalances(publicClient: PublicClient, userAddress:
     usdc.read.allowance([userAddress, DEPLOYED_ADDRESSES.PrismAuction]) as Promise<bigint>,
   ]);
 
-  const isAuctionApprovedCoupons = (await ec.read.isApprovedForAll([
-    userAddress,
-    DEPLOYED_ADDRESSES.PrismAuction,
-  ])) as boolean;
+  const epochIndices = Array.from({ length: epochCount }, (_, i) => i + 1);
+
+  const [isAuctionApprovedCoupons, ...couponBalanceList] = await Promise.all([
+    ec.read.isApprovedForAll([
+      userAddress,
+      DEPLOYED_ADDRESSES.PrismAuction,
+    ]) as Promise<boolean>,
+    ...epochIndices.map((i) => ec.read.balanceOf([userAddress, BigInt(i)]) as Promise<bigint>),
+  ]);
 
   const couponBalances: Record<number, bigint> = {};
-  for (let i = 1; i <= epochCount; i++) {
-    const bal = (await ec.read.balanceOf([userAddress, BigInt(i)])) as bigint;
-    couponBalances[i] = bal;
-  }
+  epochIndices.forEach((epochId, idx) => {
+    couponBalances[epochId] = couponBalanceList[idx] ?? 0n;
+  });
 
   return {
     stockBalance,

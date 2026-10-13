@@ -6,7 +6,105 @@ import PrincipalTokenAbi from './abi/PrincipalToken.json';
 import MockStockAbi from './abi/MockStock.json';
 import MockUSDCAbi from './abi/MockUSDC.json';
 
+export const OPENZEPPELIN_ERRORS_ABI = [
+  {
+    type: 'error',
+    name: 'ERC20InsufficientAllowance',
+    inputs: [
+      { name: 'spender', type: 'address', internalType: 'address' },
+      { name: 'allowance', type: 'uint256', internalType: 'uint256' },
+      { name: 'needed', type: 'uint256', internalType: 'uint256' },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ERC20InsufficientBalance',
+    inputs: [
+      { name: 'sender', type: 'address', internalType: 'address' },
+      { name: 'balance', type: 'uint256', internalType: 'uint256' },
+      { name: 'needed', type: 'uint256', internalType: 'uint256' },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ERC20InvalidApprover',
+    inputs: [{ name: 'approver', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC20InvalidReceiver',
+    inputs: [{ name: 'receiver', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC20InvalidSender',
+    inputs: [{ name: 'sender', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC20InvalidSpender',
+    inputs: [{ name: 'spender', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InsufficientBalance',
+    inputs: [
+      { name: 'sender', type: 'address', internalType: 'address' },
+      { name: 'balance', type: 'uint256', internalType: 'uint256' },
+      { name: 'needed', type: 'uint256', internalType: 'uint256' },
+      { name: 'tokenId', type: 'uint256', internalType: 'uint256' },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InvalidApprover',
+    inputs: [{ name: 'approver', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InvalidArrayLength',
+    inputs: [
+      { name: 'idsLength', type: 'uint256', internalType: 'uint256' },
+      { name: 'valuesLength', type: 'uint256', internalType: 'uint256' },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InvalidOperator',
+    inputs: [{ name: 'operator', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InvalidReceiver',
+    inputs: [{ name: 'receiver', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155InvalidSender',
+    inputs: [{ name: 'sender', type: 'address', internalType: 'address' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1155MissingApprovalForAll',
+    inputs: [
+      { name: 'operator', type: 'address', internalType: 'address' },
+      { name: 'owner', type: 'address', internalType: 'address' },
+    ],
+  },
+] as const;
+
+export const MERGED_ABI: Abi = [
+  ...(PrismVaultAbi as unknown as Abi),
+  ...(PrismAuctionAbi as unknown as Abi),
+  ...(EpochCouponAbi as unknown as Abi),
+  ...(PrincipalTokenAbi as unknown as Abi),
+  ...(MockStockAbi as unknown as Abi),
+  ...(MockUSDCAbi as unknown as Abi),
+  ...(OPENZEPPELIN_ERRORS_ABI as unknown as Abi),
+];
+
 const ALL_ABIS: Abi[] = [
+  MERGED_ABI,
   PrismVaultAbi as unknown as Abi,
   PrismAuctionAbi as unknown as Abi,
   EpochCouponAbi as unknown as Abi,
@@ -55,11 +153,21 @@ export function formatCustomErrorMessage(errorName: string, args?: readonly unkn
     case 'FutureEpochsRemain':
       return 'Cannot redeem Principal Token while active future quarterly epochs remain.';
     case 'InsufficientBalance':
-    case 'ERC20InsufficientBalance':
-    case 'ERC1155InsufficientBalance':
       return 'Insufficient token balance to complete this transaction.';
+    case 'ERC20InsufficientBalance':
+      return 'ERC20InsufficientBalance: Insufficient token balance to complete this transaction.';
+    case 'ERC1155InsufficientBalance':
+      return 'ERC1155InsufficientBalance: Insufficient coupon balance to complete this transaction.';
     case 'ERC20InsufficientAllowance':
-      return 'Insufficient token allowance. Please approve the contract first.';
+      return 'ERC20InsufficientAllowance: Insufficient token allowance. Please approve the contract first.';
+    case 'ERC20InvalidSender':
+      return 'ERC20InvalidSender: Transaction sender is invalid or address(0). Reconnect wallet.';
+    case 'ERC20InvalidReceiver':
+      return 'ERC20InvalidReceiver: Recipient address is invalid.';
+    case 'ERC20InvalidApprover':
+      return 'ERC20InvalidApprover: Approver address is invalid.';
+    case 'ERC20InvalidSpender':
+      return 'ERC20InvalidSpender: Spender address is invalid.';
     case 'InvalidDuration':
       return 'Auction decay duration must be greater than zero.';
     case 'ArrayLengthMismatch':
@@ -161,17 +269,39 @@ export function decodeContractError(err: unknown): string {
 
   const candidate = err as Record<string, unknown>;
 
-  // Check if viem ContractFunctionRevertedError or similar
-  if (typeof candidate.data === 'string' && candidate.data.startsWith('0x')) {
-    errorDataHex = candidate.data as `0x${string}`;
-  } else if (candidate.cause && typeof candidate.cause === 'object') {
-    const causeObj = candidate.cause as Record<string, unknown>;
-    if (typeof causeObj.data === 'string' && causeObj.data.startsWith('0x')) {
-      errorDataHex = causeObj.data as `0x${string}`;
+  // Check viem error walking
+  if (typeof (candidate as any).walk === 'function') {
+    const found = (candidate as any).walk((e: any) => typeof e?.data === 'string' && e.data.startsWith('0x'));
+    if (found && typeof found.data === 'string') {
+      errorDataHex = found.data as `0x${string}`;
     }
   }
 
-  // If hex data found, attempt decode against our ABIs
+  // Check direct properties
+  if (!errorDataHex) {
+    if (typeof candidate.data === 'string' && candidate.data.startsWith('0x')) {
+      errorDataHex = candidate.data as `0x${string}`;
+    } else if (candidate.data && typeof (candidate.data as any).data === 'string' && (candidate.data as any).data.startsWith('0x')) {
+      errorDataHex = (candidate.data as any).data as `0x${string}`;
+    } else if (candidate.cause && typeof candidate.cause === 'object') {
+      const causeObj = candidate.cause as Record<string, unknown>;
+      if (typeof causeObj.data === 'string' && causeObj.data.startsWith('0x')) {
+        errorDataHex = causeObj.data as `0x${string}`;
+      } else if (causeObj.cause && typeof (causeObj.cause as any).data === 'string' && (causeObj.cause as any).data.startsWith('0x')) {
+        errorDataHex = (causeObj.cause as any).data as `0x${string}`;
+      }
+    }
+  }
+
+  // Fallback: extract hex string from error message
+  if (!errorDataHex) {
+    const hexMatch = rawMsg.match(/0x[a-fA-F0-9]{8,}/);
+    if (hexMatch) {
+      errorDataHex = hexMatch[0] as `0x${string}`;
+    }
+  }
+
+  // If hex data found, attempt decode against our merged and individual ABIs
   if (errorDataHex && errorDataHex.length >= 10) {
     for (const abi of ALL_ABIS) {
       try {
@@ -190,7 +320,7 @@ export function decodeContractError(err: unknown): string {
 
   // Match common error strings directly from message
   const errorNameMatch = rawMsg.match(
-    /\b(ZeroAddress|ZeroAmount|ExDateMustBeFuture|PayDateBeforeExDate|ExDateNotIncreasing|EpochDoesNotExist|EpochAlreadyFunded|EpochNotFunded|DividendNotDeclared|NonDividendActionType|ExDateNotReached|FutureEpochsRemain|InsufficientBalance|InvalidDuration|ArrayLengthMismatch|AuctionNotFound|AuctionNotActive|EpochPastExDate|SlippageExceeded|InsufficientAuctionLiquidity|OnlySeller|ERC20InsufficientBalance|ERC20InsufficientAllowance|DividendNotLocked|SelfTrade|CollateralShortfall|EnforcedPause|NoEpochs|FundingDefaulted|AuctionExtendsPastExDate|InvalidPrice)\b/
+    /\b(ZeroAddress|ZeroAmount|ExDateMustBeFuture|PayDateBeforeExDate|ExDateNotIncreasing|EpochDoesNotExist|EpochAlreadyFunded|EpochNotFunded|DividendNotDeclared|NonDividendActionType|ExDateNotReached|FutureEpochsRemain|InsufficientBalance|InvalidDuration|ArrayLengthMismatch|AuctionNotFound|AuctionNotActive|EpochPastExDate|SlippageExceeded|InsufficientAuctionLiquidity|OnlySeller|ERC20InsufficientBalance|ERC20InsufficientAllowance|ERC20InvalidSender|ERC20InvalidReceiver|ERC20InvalidApprover|ERC20InvalidSpender|ERC1155InsufficientBalance|ERC1155MissingApprovalForAll|DividendNotLocked|SelfTrade|CollateralShortfall|EnforcedPause|NoEpochs|FundingDefaulted|AuctionExtendsPastExDate|InvalidPrice)\b/
   );
 
   if (errorNameMatch) {
@@ -206,6 +336,10 @@ export function decodeContractError(err: unknown): string {
   const shortMessageMatch = rawMsg.match(/shortMessage:\s*([^\n\r]+)/i);
   if (shortMessageMatch) {
     return shortMessageMatch[1].trim();
+  }
+
+  if (rawMsg.trim().toLowerCase() === 'execution reverted' || rawMsg.includes('transaction execution reverted')) {
+    return 'Transaction execution reverted on-chain. Please verify token allowance and balance.';
   }
 
   return rawMsg.length > 120 ? rawMsg.slice(0, 117) + '...' : rawMsg;

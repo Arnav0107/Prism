@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import {
   getPublicClient,
@@ -62,6 +62,7 @@ export interface AppContextType {
   networkHealth: NetworkHealth;
   // Balance State Machine
   balanceStatus: BalanceLoadStatus;
+  isStale: boolean;
   balanceErrorMessage?: string;
   userBalances: UserBalances | null;
   retryLoad: () => Promise<void>;
@@ -113,6 +114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
   const [isConnectingInjected, setIsConnectingInjected] = useState<boolean>(false);
 
   const [balanceStatus, setBalanceStatus] = useState<BalanceLoadStatus>('loading');
+  const [isStale, setIsStale] = useState<boolean>(false);
   const [balanceErrorMessage, setBalanceErrorMessage] = useState<string | undefined>(undefined);
   const [networkHealth, setNetworkHealth] = useState<NetworkHealth>({
     status: 'rpc_unreachable',
@@ -146,15 +148,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
   }, [useInjected, injectedAddress, isLocal, activeDevAccount]);
 
   const walletClient: WalletClient | null = useMemo(() => {
-    if (useInjected) {
-      const inj = getInjectedWalletClient(chainId);
+    if (useInjected && injectedAddress) {
+      const inj = getInjectedWalletClient(injectedAddress, chainId);
       if (inj) return inj;
     }
     if (isLocal) {
       return getDevWalletClient(activeDevAccount.privateKey, DEFAULT_RPC_URL, LOCAL_CHAIN_ID);
     }
     return null;
-  }, [useInjected, chainId, isLocal, activeDevAccount]);
+  }, [useInjected, injectedAddress, chainId, isLocal, activeDevAccount]);
 
   const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -308,23 +310,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
     };
   }, []);
 
+  const isRefreshingRef = useRef<boolean>(false);
+  const retryDelayRef = useRef<number>(12000);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedOnceRef = useRef<boolean>(false);
+
   const refreshData = useCallback(async () => {
-    setBalanceStatus('loading');
-    setBalanceErrorMessage(undefined);
+    // In-flight guard: prevent overlapping refreshes
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
 
-    const addresses = getActiveAddresses(chainId);
-    const health = await checkNetworkHealth(publicClient, addresses, chainId);
-    setNetworkHealth(health);
-
-    if (!health.isReady) {
-      const bStatus: BalanceLoadStatus = health.status === 'rpc_unreachable' ? 'error' : 'not-deployed';
-      setBalanceStatus(bStatus);
-      setBalanceErrorMessage(health.message);
-      setIsLoading(false);
-      return;
+    // Stale-while-revalidate: show 'loading' only when no data has loaded yet
+    if (!hasLoadedOnceRef.current) {
+      setBalanceStatus('loading');
+      setBalanceErrorMessage(undefined);
     }
 
     try {
+      const addresses = getActiveAddresses(chainId);
+      const health = await checkNetworkHealth(publicClient, addresses, chainId);
+      setNetworkHealth(health);
+
+      if (!health.isReady) {
+        if (!hasLoadedOnceRef.current) {
+          const bStatus: BalanceLoadStatus = health.status === 'rpc_unreachable' ? 'error' : 'not-deployed';
+          setBalanceStatus(bStatus);
+          setBalanceErrorMessage(health.message);
+        } else {
+          setIsStale(true);
+        }
+        return;
+      }
+
       const vOverview = await fetchVaultOverview(publicClient);
       setVaultData(vOverview);
 
@@ -338,13 +355,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
       const mAuctions = await fetchMarketAuctions(publicClient);
       setAuctions(mAuctions);
 
+      hasLoadedOnceRef.current = true;
       setBalanceStatus('loaded');
+      setIsStale(false);
+      setBalanceErrorMessage(undefined);
       setLastUpdated(Date.now());
+      retryDelayRef.current = 12000;
     } catch (err) {
       console.error('Failed to load contract state:', err);
-      setBalanceStatus('error');
-      setBalanceErrorMessage(err instanceof Error ? err.message : 'Failed to query smart contract state.');
+      if (!hasLoadedOnceRef.current) {
+        setBalanceStatus('error');
+        setBalanceErrorMessage(err instanceof Error ? err.message : 'Failed to query smart contract state.');
+      } else {
+        setIsStale(true);
+      }
+      retryDelayRef.current = Math.min(Math.round(retryDelayRef.current * 1.5), 30000);
     } finally {
+      isRefreshingRef.current = false;
       setIsLoading(false);
     }
   }, [publicClient, accountAddress, chainId]);
@@ -354,12 +381,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
     refreshData();
   }, [refreshData]);
 
-  // Periodic poll every 5s for on-chain state updates
+  // Periodic poll every 12s, pause while hidden, retry with exponential backoff on failure
   useEffect(() => {
-    const timer = setInterval(() => {
-      refreshData();
-    }, 5000);
-    return () => clearInterval(timer);
+    let isSubscribed = true;
+
+    const scheduleNext = (delayMs: number) => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = setTimeout(async () => {
+        if (!isSubscribed) return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
+        await refreshData();
+        if (isSubscribed) {
+          scheduleNext(retryDelayRef.current);
+        }
+      }, delayMs);
+    };
+
+    scheduleNext(12000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        retryDelayRef.current = 12000;
+        refreshData().finally(() => {
+          if (isSubscribed) scheduleNext(12000);
+        });
+      } else {
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      isSubscribed = false;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [refreshData]);
 
   const setActiveDevAccount = (idx: number) => {
@@ -383,6 +446,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialChainId?:
     useInjectedWallet: useInjected,
     networkHealth,
     balanceStatus,
+    isStale,
     balanceErrorMessage,
     userBalances,
     retryLoad: refreshData,

@@ -1,0 +1,12 @@
+[2026-10-13T21:50:07.886Z] Local test server started on http://localhost:8095
+[2026-10-13T21:50:08.532Z] Navigating to http://localhost:8095/#/app...
+[2026-10-13T21:50:18.211Z] Loaded initial UI
+[2026-10-13T21:50:18.249Z] Found button: SWITCH TO MONAD
+[2026-10-13T21:50:19.796Z] Clicked connect button
+[2026-10-13T21:50:19.800Z] Balance check [0]: mSTOCK: | -- | | | mUSDC: | -- | | | PPT: | -- | | | EC: | --
+[2026-10-13T21:50:22.805Z] Balance check [1]: mSTOCK: | -- | | | mUSDC: | -- | | | PPT: | -- | | | EC: | --
+[2026-10-13T21:50:25.811Z] Balance check [2]: mSTOCK: | 0.00 | | | mUSDC: | 0.00 | | | PPT: | 0.00 | | | EC: | 0.00
+[2026-10-13T21:50:28.816Z] Balance check [3]: mSTOCK: | 0.00 | | | mUSDC: | 0.00 | | | PPT: | 0.00 | | | EC: | 0.00
+[2026-10-13T21:50:31.826Z] Balance check [4]: mSTOCK: | 0.00 | | | mUSDC: | 0.00 | | | PPT: | 0.00 | | | EC: | 0.00
+[2026-10-13T21:50:34.830Z] ASSERTION PASSED: Balances remained stable without flickering back to '...'
+[2026-10-13T21:50:34.830Z] Injected wallet flow check completed successfully.

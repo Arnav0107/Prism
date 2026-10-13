@@ -14,6 +14,7 @@ export const WalletBar: React.FC = () => {
     useInjectedWallet,
     userBalances,
     balanceStatus,
+    isStale,
     balanceErrorMessage,
     networkHealth,
   } = useApp();
@@ -127,6 +128,17 @@ export const WalletBar: React.FC = () => {
       {/* Balances Pill */}
       <div className="prism-wallet-bar__right">
         <div className="prism-wallet-bar__balances" title={balanceErrorMessage}>
+          {isStale && accountAddress && (
+            <>
+              <span
+                className="prism-wallet-bar__stale-badge"
+                title="Background refresh delayed (retrying with backoff); showing last good balances"
+              >
+                STALE
+              </span>
+              <span className="prism-wallet-bar__bal-divider">|</span>
+            </>
+          )}
           <span className="prism-wallet-bar__bal-item">
             <span className="prism-wallet-bar__bal-label">mSTOCK:</span>
             <span className="prism-wallet-bar__bal-value font-mono">

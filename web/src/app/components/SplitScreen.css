@@ -319,3 +319,48 @@
     grid-template-columns: 1fr;
   }
 }
+
+.prism-calc-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 6px;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  gap: var(--space-4);
+}
+
+.prism-calc-banner__content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.prism-calc-banner__icon {
+  font-size: 1.25rem;
+  color: #00e5ff;
+}
+
+.prism-calc-banner__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #00e5ff;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.prism-calc-banner__desc {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.prism-calc-banner button {
+  width: auto;
+  white-space: nowrap;
+  padding: 6px 14px;
+}
+

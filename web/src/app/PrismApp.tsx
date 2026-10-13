@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import { AppHeader } from './components/AppHeader';
 import { WalletBar } from './components/WalletBar';
 import { SplitScreen } from './components/SplitScreen';
+import { StripCalculator } from './components/StripCalculator';
 import { MarketScreen } from './components/MarketScreen';
 import { DividendCurveScreen } from './components/DividendCurveScreen';
 import { PortfolioScreen } from './components/PortfolioScreen';
@@ -39,6 +40,7 @@ const AppContent: React.FC = () => {
           ) : (
             <>
               {activeTab === 'split' && <SplitScreen />}
+              {activeTab === 'calc' && <StripCalculator />}
               {activeTab === 'market' && <MarketScreen />}
               {activeTab === 'curve' && <DividendCurveScreen />}
               {activeTab === 'portfolio' && <PortfolioScreen />}

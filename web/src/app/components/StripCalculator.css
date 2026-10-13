@@ -1,0 +1,322 @@
+.strip-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.strip-calc__header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 16px;
+}
+
+.strip-calc__title {
+  font-family: var(--font-display, serif);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--color-ink-primary);
+  margin: 0 0 8px 0;
+}
+
+.strip-calc__subtitle {
+  font-size: 0.95rem;
+  color: var(--color-ink-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Controls Grid */
+.strip-calc__inputs-card {
+  background: var(--color-surface, #11141d);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.strip-calc__inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.strip-calc__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strip-calc__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+}
+
+.strip-calc__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.strip-calc__prefix {
+  position: absolute;
+  left: 12px;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+.strip-calc__input {
+  width: 100%;
+  background: var(--color-bg, #0c0e14);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--color-ink-primary);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.strip-calc__input--has-prefix {
+  padding-left: 28px;
+}
+
+.strip-calc__input:focus {
+  border-color: var(--color-vermilion, #f43f5e);
+}
+
+.strip-calc__quick-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.strip-calc__quick-btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.strip-calc__quick-btn:hover {
+  background: var(--color-border);
+  color: var(--color-ink-primary);
+}
+
+/* Takeaway Banner */
+.strip-calc__takeaway {
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.strip-calc__takeaway-icon {
+  color: #00e5ff;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.strip-calc__takeaway-text {
+  font-size: 0.95rem;
+  color: var(--color-ink-primary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.strip-calc__takeaway-text strong {
+  color: #00e5ff;
+}
+
+/* Comparison Cards */
+.strip-calc__comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.strip-calc__strategy-card {
+  background: var(--color-surface, #11141d);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.strip-calc__strategy-card--recommended {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.05);
+}
+
+.strip-calc__strategy-card--recommended::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #10b981;
+}
+
+.strip-calc__strategy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.strip-calc__strategy-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-ink-primary);
+  margin: 0 0 4px 0;
+}
+
+.strip-calc__strategy-desc {
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+
+.strip-calc__badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.strip-calc__badge--strip {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.strip-calc__badge--hold {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.strip-calc__metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.strip-calc__metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.strip-calc__metric-label {
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.strip-calc__metric-val {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-ink-primary);
+}
+
+.strip-calc__metric-val--highlight {
+  color: #10b981;
+}
+
+.strip-calc__metric-val--muted {
+  color: #64748b;
+}
+
+.strip-calc__summary-box {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.strip-calc__summary-label {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.strip-calc__summary-val {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-ink-primary);
+}
+
+/* Assumptions & Transparency Section */
+.strip-calc__assumptions {
+  background: var(--color-surface, #11141d);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 18px 24px;
+}
+
+.strip-calc__assumptions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.strip-calc__assumptions-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.strip-calc__assumptions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.strip-calc__assumption-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.strip-calc__assumption-label {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.strip-calc__assumption-val {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink-primary);
+}
+
+@media (max-width: 640px) {
+  .strip-calc__comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}

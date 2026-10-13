@@ -30,6 +30,7 @@ export const SplitScreen: React.FC = () => {
     refreshData,
     addToast,
     updateToast,
+    setActiveTab,
   } = useApp();
 
   const [depositInput, setDepositInput] = useState('10');
@@ -314,6 +315,25 @@ export const SplitScreen: React.FC = () => {
           </button>
         </div>
       )}
+
+      <div className="prism-calc-banner">
+        <div className="prism-calc-banner__content">
+          <span className="prism-calc-banner__icon">⚖</span>
+          <div>
+            <span className="prism-calc-banner__title font-mono">STRIP VS. HOLD CALCULATOR</span>
+            <p className="prism-calc-banner__desc">
+              Compare upfront coupon sale proceeds vs holding dividends to maturity.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="prism-btn prism-btn--secondary font-mono"
+          onClick={() => setActiveTab('calc')}
+        >
+          OPEN CALCULATOR &rarr;
+        </button>
+      </div>
 
       <div className="prism-split-screen__grid">
         {/* Left Column: Deposit & Bifurcate */}

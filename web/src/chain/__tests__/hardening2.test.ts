@@ -60,7 +60,7 @@ describe('Phase 4 Hardening: Chain-ID Gating & Transaction Simulation', () => {
 
     await expect(
       callWriteContract(fakeWalletClient, '0x1111111111111111111111111111111111111111', [], 'deposit', [100n])
-    ).rejects.toThrowError(/Chain mismatch: wallet is connected to chain 1, but target chain is 31337/);
+    ).rejects.toThrowError(/Chain mismatch: wallet is connected to chain 1, but target chain is (31337|10143)/);
   });
 });
 

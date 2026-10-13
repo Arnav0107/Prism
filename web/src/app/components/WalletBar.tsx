@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { ANVIL_DEV_ACCOUNTS, formatStock, formatUsdc, MONAD_TESTNET_CHAIN_ID } from '../../chain/contracts';
+import { ANVIL_DEV_ACCOUNTS, formatStock, formatUsdc, MONAD_TESTNET_CHAIN_ID, LOCAL_CHAIN_ID } from '../../chain/contracts';
 import './WalletBar.css';
 
 export const WalletBar: React.FC = () => {
@@ -19,13 +19,15 @@ export const WalletBar: React.FC = () => {
   } = useApp();
 
   const isMonad = chainId === MONAD_TESTNET_CHAIN_ID;
-  const isAnvil = chainId === 31337;
+  const isAnvil = chainId === LOCAL_CHAIN_ID;
 
-  const totalCouponsHeld = userBalances?.couponBalances
-    ? Object.values(userBalances.couponBalances).reduce((sum, b) => sum + b, 0n)
-    : 0n;
+  const totalCouponsHeld =
+    accountAddress && userBalances?.couponBalances
+      ? Object.values(userBalances.couponBalances).reduce((sum, b) => sum + b, 0n)
+      : undefined;
 
   const renderBalance = (val: bigint | undefined, formatter: (b: bigint) => string) => {
+    if (!accountAddress) return '--';
     if (balanceStatus === 'loading') return '...';
     if (balanceStatus === 'loaded' && val !== undefined) return formatter(val);
     return '--';
@@ -68,7 +70,7 @@ export const WalletBar: React.FC = () => {
         )}
 
         {/* Dev Account Switcher (Strictly visible only on ChainId 31337 when not using injected wallet) */}
-        {isAnvil && !useInjectedWallet && (
+        {isAnvil && !useInjectedWallet && accountAddress && (
           <div className="prism-wallet-bar__switcher">
             <label htmlFor="dev-account-select" className="prism-wallet-bar__label">
               ACTOR:
@@ -88,15 +90,29 @@ export const WalletBar: React.FC = () => {
           </div>
         )}
 
-        {/* Injected Connected indicator */}
-        {useInjectedWallet && (
+        {/* Injected Connected indicator (only when accountAddress exists) */}
+        {useInjectedWallet && accountAddress && (
           <span className="prism-wallet-bar__label" style={{ opacity: 0.8 }}>
             WALLET: {accountAddress.slice(0, 6)}...{accountAddress.slice(-4)}
           </span>
         )}
 
-        {/* Connect Injected Wallet Button */}
-        {!useInjectedWallet && (
+        {/* Read-only banner / CTA when no wallet is connected */}
+        {!accountAddress ? (
+          <div className="prism-wallet-bar__readonly-cta">
+            <span className="prism-wallet-bar__readonly-badge">
+              Read-only: connect a wallet to interact
+            </span>
+            <button
+              type="button"
+              className="prism-wallet-bar__connect-btn font-mono"
+              onClick={connectInjected}
+              title="Connect MetaMask, Rabby, or browser Web3 wallet"
+            >
+              CONNECT INJECTED
+            </button>
+          </div>
+        ) : !useInjectedWallet ? (
           <button
             type="button"
             className="prism-wallet-bar__connect-btn font-mono"
@@ -105,7 +121,7 @@ export const WalletBar: React.FC = () => {
           >
             CONNECT INJECTED
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Balances Pill */}

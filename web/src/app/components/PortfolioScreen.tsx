@@ -13,6 +13,8 @@ export const PortfolioScreen: React.FC = () => {
   const {
     walletClient,
     publicClient,
+    accountAddress,
+    connectInjected,
     vaultData,
     userBalances,
     refreshData,
@@ -87,6 +89,16 @@ export const PortfolioScreen: React.FC = () => {
   const totalClaimableUSDC = epochRows.reduce((sum, r) => sum + r.claimableUsdc, 0n);
 
   const handleClaim = async (epochId: number, amount: bigint) => {
+    if (!walletClient || !accountAddress) {
+      connectInjected();
+      addToast({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        message: 'Connect your wallet on Monad Testnet to continue',
+      });
+      return;
+    }
+
     setIsClaimingEpochId(epochId);
     const toastId = addToast({
       type: 'pending',
@@ -122,7 +134,11 @@ export const PortfolioScreen: React.FC = () => {
         <section className="prism-card prism-summary-card">
           <span className="prism-summary-card__label">TOTAL CLAIMABLE DIVIDENDS</span>
           <strong className="prism-summary-card__value prism-summary-card__value--highlight">
-            ${formatUsdc(totalClaimableUSDC)} <small>USDC</small>
+            {accountAddress && userBalances ? (
+              <>${formatUsdc(totalClaimableUSDC)} <small>USDC</small></>
+            ) : (
+              '--'
+            )}
           </strong>
           <span className="prism-summary-card__sub">From funded cycle epochs ready for redemption</span>
         </section>
@@ -130,7 +146,11 @@ export const PortfolioScreen: React.FC = () => {
         <section className="prism-card prism-summary-card">
           <span className="prism-summary-card__label">PRINCIPAL TOKEN HOLDINGS</span>
           <strong className="prism-summary-card__value">
-            {userBalances ? formatStock(userBalances.ptBalance) : '0.00'} <small>PT-STOCK</small>
+            {accountAddress && userBalances ? (
+              <>{formatStock(userBalances.ptBalance)} <small>PT-STOCK</small></>
+            ) : (
+              '--'
+            )}
           </strong>
           <span className="prism-summary-card__sub">Perpetual underlying asset collateral claim</span>
         </section>
@@ -138,7 +158,11 @@ export const PortfolioScreen: React.FC = () => {
         <section className="prism-card prism-summary-card">
           <span className="prism-summary-card__label">STABLECOIN CASH BALANCE</span>
           <strong className="prism-summary-card__value">
-            ${userBalances ? formatUsdc(userBalances.usdcBalance) : '0.00'} <small>USDC</small>
+            {accountAddress && userBalances ? (
+              <>${formatUsdc(userBalances.usdcBalance)} <small>USDC</small></>
+            ) : (
+              '--'
+            )}
           </strong>
           <span className="prism-summary-card__sub">Liquid MockUSDC balance in wallet</span>
         </section>
@@ -189,7 +213,7 @@ export const PortfolioScreen: React.FC = () => {
                       <span>Ex: {exStr}</span> &middot; <span>Pay: {payStr}</span>
                     </td>
                     <td>
-                      <strong>{formatStock(row.couponBalance)} EC</strong>
+                      <strong>{accountAddress && userBalances ? `${formatStock(row.couponBalance)} EC` : '--'}</strong>
                     </td>
                     <td>
                       {row.grossUsdcPerShare && row.grossUsdcPerShare > 0n ? (
@@ -220,24 +244,34 @@ export const PortfolioScreen: React.FC = () => {
                     </td>
                     <td>
                       <strong className="prism-payout-val">
-                        ${formatUsdc(row.claimableUsdc)} USDC
+                        {accountAddress && userBalances ? `$${formatUsdc(row.claimableUsdc)} USDC` : '--'}
                       </strong>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="prism-btn prism-btn--primary prism-btn--sm"
-                        onClick={() => handleClaim(row.epochId, row.couponBalance)}
-                        disabled={!canClaim || isBusy}
-                      >
-                        {isBusy
-                          ? 'CLAIMING...'
-                          : !row.funded
-                            ? 'UNFUNDED'
-                            : row.couponBalance === 0n
-                              ? 'NO COUPONS'
-                              : 'CLAIM USDC'}
-                      </button>
+                      {!accountAddress ? (
+                        <button
+                          type="button"
+                          className="prism-btn prism-btn--primary prism-btn--sm"
+                          onClick={() => handleClaim(row.epochId, row.couponBalance)}
+                        >
+                          CONNECT WALLET
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="prism-btn prism-btn--primary prism-btn--sm"
+                          onClick={() => handleClaim(row.epochId, row.couponBalance)}
+                          disabled={!canClaim || isBusy}
+                        >
+                          {isBusy
+                            ? 'CLAIMING...'
+                            : !row.funded
+                              ? 'UNFUNDED'
+                              : row.couponBalance === 0n
+                                ? 'NO COUPONS'
+                                : 'CLAIM USDC'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

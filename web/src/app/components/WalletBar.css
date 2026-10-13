@@ -87,6 +87,23 @@
   color: var(--color-surface);
 }
 
+.prism-wallet-bar__readonly-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 3px 8px;
+  background: rgba(255, 107, 74, 0.08);
+  border: 1px dashed rgba(255, 107, 74, 0.4);
+  border-radius: 2px;
+}
+
+.prism-wallet-bar__readonly-badge {
+  color: var(--color-vermilion);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
 .prism-wallet-bar__right {
   display: flex;
   align-items: center;

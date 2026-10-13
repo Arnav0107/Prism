@@ -510,15 +510,41 @@ export async function fetchMarketAuctions(publicClient: PublicClient): Promise<A
     client: publicClient,
   });
 
-  const logs = await publicClient.getLogs({
-    address: DEPLOYED_ADDRESSES.PrismAuction,
-    event: parseAbiItem(
-      'event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration, uint256 startTime)'
-    ),
-    fromBlock: 0n,
-  });
+  let ids: number[] = [];
 
-  const ids = Array.from(new Set(logs.map((l) => Number(l.args.auctionId))));
+  try {
+    const nextIdBig = (await publicClient.readContract({
+      address: DEPLOYED_ADDRESSES.PrismAuction,
+      abi: [
+        {
+          type: 'function',
+          name: 'nextAuctionId',
+          inputs: [],
+          outputs: [{ name: '', type: 'uint256' }],
+          stateMutability: 'view',
+        },
+      ] as const,
+      functionName: 'nextAuctionId',
+    })) as bigint;
+
+    const maxId = Number(nextIdBig) - 1;
+    for (let i = 1; i <= maxId; i++) {
+      ids.push(i);
+    }
+  } catch {
+    try {
+      const logs = await publicClient.getLogs({
+        address: DEPLOYED_ADDRESSES.PrismAuction,
+        event: parseAbiItem(
+          'event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 startPrice, uint256 floorPrice, uint256 duration, uint256 startTime)'
+        ),
+        fromBlock: 0n,
+      });
+      ids = Array.from(new Set(logs.map((l) => Number(l.args.auctionId))));
+    } catch {
+      ids = [];
+    }
+  }
   const list: AuctionView[] = [];
 
   for (const id of ids) {

@@ -15,7 +15,7 @@ import { TxToast } from './components/TxToast';
 import './PrismApp.css';
 
 const AppContent: React.FC = () => {
-  const { activeTab, isLoading } = useApp();
+  const { activeTab, isLoading, chainId } = useApp();
   const { theme, setTheme } = useTheme();
 
   // App defaults to 'ink' (dark) theme per specification
@@ -36,7 +36,9 @@ const AppContent: React.FC = () => {
           {isLoading ? (
             <div className="prism-app-loading font-mono">
               <span className="prism-app-loading__dot"></span>
-              CONNECTING TO ANVIL LOCAL NODE (CHAINID 31337)...
+              {chainId === 10143
+                ? 'CONNECTING TO MONAD TESTNET (CHAINID 10143)...'
+                : `CONNECTING TO NODE (CHAINID ${chainId})...`}
             </div>
           ) : (
             <>

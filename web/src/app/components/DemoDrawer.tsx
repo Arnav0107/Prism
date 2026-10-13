@@ -38,6 +38,7 @@ export const DemoDrawer: React.FC = () => {
   if (chainId !== 31337 || !isDemoDrawerOpen) return null;
 
   const handleMint = async (type: 'stock' | 'usdc') => {
+    if (!walletClient || !accountAddress) return;
     setIsProcessing(true);
     const amtStr = type === 'stock' ? mintStockAmount : mintUsdcAmount;
     const parsed = type === 'stock' ? parseStock(amtStr) : parseUsdc(amtStr);
@@ -66,6 +67,7 @@ export const DemoDrawer: React.FC = () => {
   };
 
   const handleDeclareDividend = async () => {
+    if (!walletClient || !accountAddress) return;
     setIsProcessing(true);
     const parsedRate = parseUsdc(dividendRateInput);
 
@@ -93,6 +95,7 @@ export const DemoDrawer: React.FC = () => {
   };
 
   const handleFundEpoch = async () => {
+    if (!walletClient || !accountAddress) return;
     setIsProcessing(true);
     const toastId = addToast({
       type: 'pending',

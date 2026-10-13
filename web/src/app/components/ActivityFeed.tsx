@@ -55,7 +55,8 @@ export const ActivityFeed: React.FC = () => {
     try {
       const latestBlock = await publicClient.getBlock({ blockTag: 'latest' });
       const currentBlockNum = latestBlock.number;
-      const fromBlock = currentBlockNum > 1000n ? currentBlockNum - 1000n : 0n;
+      const blockRange = chainId === MONAD_TESTNET_CHAIN_ID ? 90n : 1000n;
+      const fromBlock = currentBlockNum > blockRange ? currentBlockNum - blockRange : 0n;
 
       // 1. Fetch Vault Deposited
       const depositLogsPromise = publicClient.getLogs({
@@ -189,7 +190,7 @@ export const ActivityFeed: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient]);
+  }, [publicClient, chainId]);
 
   // Initial load and gentle 10s poll
   useEffect(() => {

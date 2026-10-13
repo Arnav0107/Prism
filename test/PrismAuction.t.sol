@@ -55,6 +55,13 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         vault.createEpoch(epoch2Ex, epoch2Ex + 5 days);
         vault.createEpoch(epoch3Ex, epoch3Ex + 5 days);
 
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
+        dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(2);
+        dividendSource.declareEvent(3, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(3);
+
         // Fund seller with stock and deposit to get coupons
         stock.mint(seller, 1_000e18);
         vm.startPrank(seller);
@@ -319,8 +326,11 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         auction.createAuction(1, 50e18, 1e6, 0.5e6, 1000);
 
         // Declare and fund epoch 2
-        dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
-        dividendSource.lockEvent(2);
+        (,,, bool isLocked2) = dividendSource.getEvent(2);
+        if (!isLocked2) {
+            dividendSource.declareEvent(2, IDividendSource.ActionType.DIVIDEND, 1e6);
+            dividendSource.lockEvent(2);
+        }
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);
@@ -397,8 +407,11 @@ contract PrismAuctionTest is Test, IERC1155Receiver {
         uint256 auctionId = auction.createAuction(1, 100e18, 1_000_000, 200_000, 1_000);
 
         // Fund epoch 1
-        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
-        dividendSource.lockEvent(1);
+        (,,, bool isLocked1) = dividendSource.getEvent(1);
+        if (!isLocked1) {
+            dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+            dividendSource.lockEvent(1);
+        }
         address funder = makeAddr("funder");
         usdc.mint(funder, 10_000e6);
         vm.prank(funder);

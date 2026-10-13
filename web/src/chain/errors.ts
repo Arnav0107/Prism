@@ -113,6 +113,30 @@ export function formatCustomErrorMessage(errorName: string, args?: readonly unkn
     }
     case 'FillBelowMinimum':
       return 'Order size is below the minimum fill threshold (0.001 coupons) unless filling the entire remaining auction.';
+    case 'DividendNotLocked': {
+      const id = args && args[0] !== undefined ? String(args[0]) : '';
+      return `Dividend for epoch ${id ? id + ' ' : ''}is not locked. Secondary auctions cannot trade changeable dividends.`;
+    }
+    case 'SelfTrade':
+      return 'Self-trading is not permitted: buyer cannot be the auction seller.';
+    case 'CollateralShortfall':
+      return 'Vault collateral shortfall detected: underlying balance is less than Principal Token supply.';
+    case 'EnforcedPause':
+      return 'Action blocked: protocol is currently paused by the guardian.';
+    case 'NoEpochs':
+      return 'Cannot proceed: vault contains no distribution epochs.';
+    case 'FundingDefaulted': {
+      const id = args && args[0] !== undefined ? String(args[0]) : '';
+      return `Epoch ${id ? id + ' ' : ''}dividend funding has defaulted past the grace period.`;
+    }
+    case 'AuctionExtendsPastExDate':
+      return 'Auction decay duration extends past the epoch ex-dividend date.';
+    case 'InvalidPrice':
+      return 'Invalid price: starting price exceeds maximum allowable price or is below floor price.';
+    case 'NotGuardian':
+      return 'Unauthorized: caller is not the guardian or contract owner.';
+    case 'NotPendingGuardian':
+      return 'Unauthorized: caller is not the designated pending guardian.';
     case 'ReentrancyGuardReentrantCall':
       return 'Transaction reentrancy guard triggered.';
     default:
@@ -166,7 +190,7 @@ export function decodeContractError(err: unknown): string {
 
   // Match common error strings directly from message
   const errorNameMatch = rawMsg.match(
-    /\b(ZeroAddress|ZeroAmount|ExDateMustBeFuture|PayDateBeforeExDate|ExDateNotIncreasing|EpochDoesNotExist|EpochAlreadyFunded|EpochNotFunded|DividendNotDeclared|NonDividendActionType|ExDateNotReached|FutureEpochsRemain|InsufficientBalance|InvalidDuration|ArrayLengthMismatch|AuctionNotFound|AuctionNotActive|EpochPastExDate|SlippageExceeded|InsufficientAuctionLiquidity|OnlySeller|ERC20InsufficientBalance|ERC20InsufficientAllowance)\b/
+    /\b(ZeroAddress|ZeroAmount|ExDateMustBeFuture|PayDateBeforeExDate|ExDateNotIncreasing|EpochDoesNotExist|EpochAlreadyFunded|EpochNotFunded|DividendNotDeclared|NonDividendActionType|ExDateNotReached|FutureEpochsRemain|InsufficientBalance|InvalidDuration|ArrayLengthMismatch|AuctionNotFound|AuctionNotActive|EpochPastExDate|SlippageExceeded|InsufficientAuctionLiquidity|OnlySeller|ERC20InsufficientBalance|ERC20InsufficientAllowance|DividendNotLocked|SelfTrade|CollateralShortfall|EnforcedPause|NoEpochs|FundingDefaulted|AuctionExtendsPastExDate|InvalidPrice)\b/
   );
 
   if (errorNameMatch) {

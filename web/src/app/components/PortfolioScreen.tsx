@@ -4,6 +4,7 @@ import {
   formatStock,
   formatUsdc,
   claimDividend,
+  formatTimestampToDate,
 } from '../../chain/contracts';
 import { decodeContractError } from '../../chain/errors';
 import './PortfolioScreen.css';
@@ -21,7 +22,7 @@ export const PortfolioScreen: React.FC = () => {
 
   const [isClaimingEpochId, setIsClaimingEpochId] = useState<number | null>(null);
 
-  const now = BigInt(Math.floor(Date.now() / 1000));
+  const now = vaultData?.latestBlockTimestamp ?? BigInt(Math.floor(Date.now() / 1000));
   const epochs = vaultData?.epochs ?? [];
 
   // Calculate pro-rata payout for each epoch
@@ -46,12 +47,31 @@ export const PortfolioScreen: React.FC = () => {
         statusLabel = 'SETTLED';
       }
     } else {
-      if (ep.exDate > now) {
-        statusType = 'live';
-        statusLabel = 'LIVE';
+      if (ep.isLive !== undefined) {
+        if (ep.isLive) {
+          statusType = 'live';
+          statusLabel = 'LIVE';
+        } else if (ep.isAwaitingFunding) {
+          statusType = 'expired';
+          statusLabel = 'AWAITING FUNDING';
+        } else if (ep.isDefaulted) {
+          statusType = 'expired';
+          statusLabel = 'DEFAULTED';
+        } else if (ep.exDate > now) {
+          statusType = 'live';
+          statusLabel = 'LIVE';
+        } else {
+          statusType = 'expired';
+          statusLabel = 'EXPIRED (UNFUNDED)';
+        }
       } else {
-        statusType = 'expired';
-        statusLabel = 'EXPIRED (UNFUNDED)';
+        if (ep.exDate > now) {
+          statusType = 'live';
+          statusLabel = 'LIVE';
+        } else {
+          statusType = 'expired';
+          statusLabel = 'EXPIRED (UNFUNDED)';
+        }
       }
     }
 
@@ -153,14 +173,8 @@ export const PortfolioScreen: React.FC = () => {
             </thead>
             <tbody>
               {epochRows.map((row) => {
-                const exStr = new Date(Number(row.exDate) * 1000).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-                const payStr = new Date(Number(row.payDate) * 1000).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
+                const exStr = formatTimestampToDate(row.exDate);
+                const payStr = formatTimestampToDate(row.payDate);
 
                 const isBusy = isClaimingEpochId === row.epochId;
                 const canClaim = row.funded && row.couponBalance > 0n;

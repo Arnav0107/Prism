@@ -139,9 +139,14 @@ export const DividendCurveScreen: React.FC = () => {
         <div className="prism-card__header">
           <span className="prism-card__step font-mono">TERM STRUCTURE CURVE</span>
           <h2 id="chart-heading" className="prism-card__title">
-            Quarterly Clearing Price & Yield Curve
+            Quarterly Clearing Price & Yield Curve (VWAP is Informational Only)
           </h2>
         </div>
+
+        <p className="prism-card__desc">
+          Volume-Weighted Average Price (VWAP) is computed from historical Dutch auction fills for informational
+          monitoring only. It does not represent an unmanipulable on-chain oracle.
+        </p>
 
         <div className="prism-curve-chart" aria-hidden="true">
           <svg viewBox="0 0 600 220" className="prism-curve-chart__svg">
@@ -223,7 +228,7 @@ export const DividendCurveScreen: React.FC = () => {
               <tr>
                 <th scope="col">CYCLE EPOCH</th>
                 <th scope="col">EX-DIVIDEND DATE</th>
-                <th scope="col">LAST CLEARING PRICE</th>
+                <th scope="col">VWAP CLEARING PRICE (INFORMATIONAL ONLY)</th>
                 <th scope="col">CUMULATIVE VOLUME</th>
                 <th scope="col">IMPLIED YIELD</th>
                 <th scope="col">ANNUALIZED</th>

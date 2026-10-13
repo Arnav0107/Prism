@@ -13,8 +13,10 @@ import {
   defineChain,
   type Chain,
   parseAbiItem,
+  type Abi,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { decodeContractError } from './errors';
 import {
   MONAD_TESTNET_CHAIN_ID,
   LOCAL_CHAIN_ID,
@@ -56,6 +58,10 @@ export interface ContractAddresses {
   PrincipalToken: Address;
   EpochCoupon: Address;
   PrismAuction: Address;
+}
+
+export function getActiveChainId(): number {
+  return isDeployedOnMonad ? MONAD_TESTNET_CHAIN_ID : LOCAL_CHAIN_ID;
 }
 
 export function getActiveAddresses(chainId?: number): ContractAddresses {
@@ -114,6 +120,18 @@ export const ANVIL_DEV_ACCOUNTS = [
   },
 ];
 
+/**
+ * Returns dev accounts only when chainId is 31337. Throws on any other chain.
+ */
+export function getDevAccounts(chainId: number = getActiveChainId()): typeof ANVIL_DEV_ACCOUNTS {
+  if (chainId !== LOCAL_CHAIN_ID) {
+    throw new Error(
+      `Burner or demo actors using Anvil keys are strictly prohibited on chain ${chainId}. Permitted only on local test chain ${LOCAL_CHAIN_ID}.`
+    );
+  }
+  return ANVIL_DEV_ACCOUNTS;
+}
+
 export interface EpochData {
   epochId: number;
   exDate: bigint;
@@ -121,6 +139,36 @@ export interface EpochData {
   funded: boolean;
   totalFundedUSDC: bigint;
   fundedSupply: bigint;
+  isLive?: boolean;
+  isAwaitingFunding?: boolean;
+  isDefaulted?: boolean;
+  graceEndsAt?: bigint;
+}
+
+export function validateNonNegativeAmount(amount: bigint, fieldName: string = 'Amount'): void {
+  if (amount <= 0n) {
+    throw new Error(`${fieldName} must be greater than zero.`);
+  }
+}
+
+export function validateWithinBalance(amount: bigint, balance: bigint, tokenName: string = 'token'): void {
+  validateNonNegativeAmount(amount);
+  if (amount > balance) {
+    throw new Error(`Requested amount exceeds your available ${tokenName} balance.`);
+  }
+}
+
+export function formatTimestampToDate(timestampInSeconds: bigint | number | undefined): string {
+  if (timestampInSeconds === undefined || timestampInSeconds === null) return 'N/A';
+  const sec = typeof timestampInSeconds === 'bigint' ? Number(timestampInSeconds) : timestampInSeconds;
+  if (!Number.isFinite(sec) || sec <= 0) return 'N/A';
+  const ms = sec > 1e11 ? sec : sec * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return 'Invalid Date';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export interface AuctionView {
@@ -225,7 +273,16 @@ export function getPublicClient(chainId: number = LOCAL_CHAIN_ID): PublicClient 
   return getLocalPublicClient();
 }
 
-export function getDevWalletClient(privateKey: `0x${string}`, rpcUrl: string = DEFAULT_RPC_URL): WalletClient {
+export function getDevWalletClient(
+  privateKey: `0x${string}`,
+  rpcUrl: string = DEFAULT_RPC_URL,
+  chainId: number = getActiveChainId()
+): WalletClient {
+  if (chainId !== LOCAL_CHAIN_ID) {
+    throw new Error(
+      `Burner or demo actors using Anvil keys are strictly prohibited on chain ${chainId}. Permitted only on local test chain ${LOCAL_CHAIN_ID}.`
+    );
+  }
   const account = privateKeyToAccount(privateKey);
   return createWalletClient({
     account,
@@ -247,14 +304,50 @@ export function getInjectedWalletClient(chainId: number = LOCAL_CHAIN_ID): Walle
   });
 }
 
-// Internal typed write helper
-async function callWriteContract(
+// Internal typed write helper with chain gating and simulation
+export async function callWriteContract(
   walletClient: WalletClient,
   address: Address,
   abi: readonly unknown[],
   functionName: string,
   args?: readonly unknown[]
 ): Promise<Hash> {
+  const targetChainId = getActiveChainId();
+
+  // Verify wallet chain matches targetChainId
+  let walletChainId: number | undefined = walletClient.chain?.id;
+  if (!walletChainId && typeof (walletClient as any).getChainId === 'function') {
+    try {
+      walletChainId = await (walletClient as any).getChainId();
+    } catch {
+      // ignore
+    }
+  }
+  if (walletChainId && walletChainId !== targetChainId) {
+    throw new Error(
+      `Chain mismatch: wallet is connected to chain ${walletChainId}, but target chain is ${targetChainId}. Please switch network.`
+    );
+  }
+
+  const pubClient = getPublicClient(targetChainId);
+  const account = (walletClient as any).account;
+  const targetChain = targetChainId === MONAD_TESTNET_CHAIN_ID ? monadTestnetChain : localAnvilChain;
+
+  // Simulate contract call before sending to catch custom errors and revert conditions
+  try {
+    if (typeof pubClient.simulateContract === 'function') {
+      await pubClient.simulateContract({
+        address,
+        abi: abi as Abi,
+        functionName,
+        args: (args ?? []) as any,
+        account,
+      });
+    }
+  } catch (simError: any) {
+    throw new Error(decodeContractError(simError));
+  }
+
   const clientAny = walletClient as unknown as {
     writeContract: (params: {
       address: Address;
@@ -267,14 +360,18 @@ async function callWriteContract(
     account?: unknown;
   };
 
-  return clientAny.writeContract({
-    address,
-    abi,
-    functionName,
-    args: args ?? [],
-    chain: localAnvilChain,
-    account: clientAny.account,
-  });
+  try {
+    return await clientAny.writeContract({
+      address,
+      abi,
+      functionName,
+      args: args ?? [],
+      chain: targetChain,
+      account: clientAny.account ?? account,
+    });
+  } catch (writeError: any) {
+    throw new Error(decodeContractError(writeError));
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -288,9 +385,10 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
     client: publicClient,
   });
 
-  const [epochCountBig, demoMode] = await Promise.all([
+  const [epochCountBig, demoMode, latestBlock] = await Promise.all([
     vault.read.epochCount(),
     vault.read.demoMode(),
+    publicClient.getBlock(),
   ]);
 
   const count = Number(epochCountBig);
@@ -298,6 +396,19 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
 
   for (let i = 1; i <= count; i++) {
     const epochInfo = (await vault.read.getEpoch([BigInt(i)])) as [bigint, bigint, boolean, bigint, bigint];
+    let isLive = false;
+    let isAwaitingFunding = false;
+    let isDefaulted = false;
+    let graceEndsAt = 0n;
+    try {
+      const status = (await vault.read.fundingStatus([BigInt(i)])) as [boolean, boolean, boolean, bigint];
+      isLive = status[0];
+      isAwaitingFunding = status[1];
+      isDefaulted = status[2];
+      graceEndsAt = status[3];
+    } catch {
+      // Fallback if not supported
+    }
     epochs.push({
       epochId: i,
       exDate: epochInfo[0],
@@ -305,12 +416,17 @@ export async function fetchVaultOverview(publicClient: PublicClient) {
       funded: epochInfo[2],
       totalFundedUSDC: epochInfo[3],
       fundedSupply: epochInfo[4],
+      isLive,
+      isAwaitingFunding,
+      isDefaulted,
+      graceEndsAt,
     });
   }
 
   return {
     epochCount: count,
     demoMode: Boolean(demoMode),
+    latestBlockTimestamp: latestBlock.timestamp,
     epochs,
   };
 }
@@ -464,14 +580,17 @@ export async function approveCouponsForAuction(
 }
 
 export async function depositShares(walletClient: WalletClient, amount: bigint): Promise<Hash> {
+  validateNonNegativeAmount(amount, 'Deposit amount');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismVault, PrismVaultAbi, 'deposit', [amount]);
 }
 
 export async function recombineShares(walletClient: WalletClient, amount: bigint): Promise<Hash> {
+  validateNonNegativeAmount(amount, 'Recombine amount');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismVault, PrismVaultAbi, 'recombine', [amount]);
 }
 
 export async function redeemPrincipal(walletClient: WalletClient, amount: bigint): Promise<Hash> {
+  validateNonNegativeAmount(amount, 'Redeem amount');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismVault, PrismVaultAbi, 'redeemPrincipal', [
     amount,
   ]);
@@ -482,6 +601,8 @@ export async function claimDividend(
   epochId: number,
   amount: bigint
 ): Promise<Hash> {
+  if (epochId <= 0) throw new Error('Epoch ID must be greater than zero.');
+  validateNonNegativeAmount(amount, 'Claim amount');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismVault, PrismVaultAbi, 'claim', [
     BigInt(epochId),
     amount,
@@ -489,6 +610,7 @@ export async function claimDividend(
 }
 
 export async function fundEpoch(walletClient: WalletClient, epochId: number): Promise<Hash> {
+  if (epochId <= 0) throw new Error('Epoch ID must be greater than zero.');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismVault, PrismVaultAbi, 'fundEpoch', [
     BigInt(epochId),
   ]);
@@ -502,6 +624,14 @@ export async function createAuction(
   floorPrice: bigint,
   durationSeconds: bigint
 ): Promise<Hash> {
+  if (epochId <= 0) throw new Error('Epoch ID must be greater than zero.');
+  validateNonNegativeAmount(amount, 'Auction amount');
+  validateNonNegativeAmount(startPrice, 'Start price');
+  validateNonNegativeAmount(floorPrice, 'Floor price');
+  if (startPrice < floorPrice) {
+    throw new Error('Start price cannot be lower than floor price.');
+  }
+  validateNonNegativeAmount(durationSeconds, 'Duration');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismAuction, PrismAuctionAbi, 'createAuction', [
     BigInt(epochId),
     amount,
@@ -519,6 +649,8 @@ export async function createBatchAuctions(
   floorPrices: bigint[],
   durationSeconds: bigint
 ): Promise<Hash> {
+  if (epochIds.length === 0) throw new Error('At least one epoch must be provided.');
+  validateNonNegativeAmount(durationSeconds, 'Duration');
   return callWriteContract(
     walletClient,
     DEPLOYED_ADDRESSES.PrismAuction,
@@ -540,6 +672,9 @@ export async function buyAuction(
   amount: bigint,
   maxPrice: bigint
 ): Promise<Hash> {
+  if (auctionId <= 0) throw new Error('Auction ID must be greater than zero.');
+  validateNonNegativeAmount(amount, 'Buy amount');
+  validateNonNegativeAmount(maxPrice, 'Max price');
   return callWriteContract(walletClient, DEPLOYED_ADDRESSES.PrismAuction, PrismAuctionAbi, 'buy', [
     BigInt(auctionId),
     amount,

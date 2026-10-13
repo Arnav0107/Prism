@@ -67,6 +67,7 @@ export interface AppContextType {
   vaultData: {
     epochCount: number;
     demoMode: boolean;
+    latestBlockTimestamp?: bigint;
     epochs: EpochData[];
   } | null;
   auctions: AuctionView[];

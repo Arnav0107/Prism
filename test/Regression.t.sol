@@ -238,9 +238,10 @@ contract RegressionTest is Test, IERC1155Receiver {
         vm.warp(T0 + 35 days);
 
         // Check fundingStatus view
-        (bool live, bool awaitingFunding, uint256 graceEndsAt) = vault.fundingStatus(1);
+        (bool live, bool awaitingFunding, bool defaulted, uint256 graceEndsAt) = vault.fundingStatus(1);
         assertFalse(live, "Epoch 1 is past exDate so not live");
         assertTrue(awaitingFunding, "Epoch 1 should be awaiting funding");
+        assertFalse(defaulted, "Epoch 1 is not defaulted while within grace");
         assertEq(graceEndsAt, T0 + 60 days, "Grace period ends 30 days after exDate");
 
         // Alice attempts recombine while epoch 1 is unfunded -> blocked!
@@ -260,7 +261,7 @@ contract RegressionTest is Test, IERC1155Receiver {
         vault.fundEpoch(1);
 
         // After funding, awaitingFunding is false
-        (, awaitingFunding,) = vault.fundingStatus(1);
+        (, awaitingFunding,,) = vault.fundingStatus(1);
         assertFalse(awaitingFunding, "Epoch 1 is no longer awaiting funding");
 
         // Recombine now succeeds because epoch 1 is funded and skipped!
@@ -285,8 +286,9 @@ contract RegressionTest is Test, IERC1155Receiver {
 
         // Warp past exDate + 30 days grace period
         vm.warp(curTime + 41 days);
-        (, bool graceAwaiting,) = graceVault.fundingStatus(1);
+        (, bool graceAwaiting, bool graceDefaulted,) = graceVault.fundingStatus(1);
         assertFalse(graceAwaiting, "Grace period has elapsed");
+        assertTrue(graceDefaulted, "Epoch 1 is defaulted after grace period without funding");
 
         // Principal redemption is now allowed after grace period expires
         uint256 bobStockBefore = stock.balanceOf(bob);
@@ -343,6 +345,8 @@ contract RegressionTest is Test, IERC1155Receiver {
     // =========================================================================
     function test_regression_F_M1() public {
         vault.createEpoch(T0 + 30 days, T0 + 35 days);
+        dividendSource.declareEvent(1, IDividendSource.ActionType.DIVIDEND, 1e6);
+        dividendSource.lockEvent(1);
         vm.prank(alice);
         vault.deposit(100e18);
 

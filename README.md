@@ -117,8 +117,8 @@ The **Prism Dividend Dutch Auction** provides continuous on-chain price discover
   $$P(t) = \text{startPrice} - \frac{(\text{startPrice} - \text{floorPrice}) \times \Delta t}{\text{duration}}$$
   Once $t \ge \text{duration}$, the price clamps deterministically at `floorPrice`.
 - **Immediate Settlement**: Buyers purchase coupons using `MockUSDC`. USDC is transferred directly from the buyer to the seller, and coupons are delivered to the buyer instantly.
-- **Minimum Fill & Anti-Wash Protection**: `buy` enforces `MIN_FILL = 1e15` (0.001 coupon) unless filling the entire remaining auction balance (`FillBelowMinimum` revert).
-- **Volume-Weighted Average Price (VWAP)**: `PrismAuction` tracks cumulative `epochNotional` (total USDC paid) and `epochVolume` (coupons filled). `vwap(epochId)` returns $\text{notional} \times 1e18 / \text{volume}$. Frontends read `clearingPrice` via `getEpochMarketData(epochId)` which returns the robust VWAP instead of a spoofable last clearing price.
+- **Order Sizing & Direct Self-Trade Guard**: `buy` enforces `MIN_FILL = 1e15` (0.001 coupon) unless filling the entire remaining auction balance (`FillBelowMinimum` revert). Direct `buyer == seller` self-trading is blocked with `SelfTrade()`.
+- **Informational Volume-Weighted Average Price (VWAP)**: `PrismAuction` tracks cumulative `epochNotional` (total USDC paid) and `epochVolume` (coupons filled). Sybil wash trading across distinct addresses cannot be prevented purely on-chain; therefore, the VWAP is **strictly informational** and must never be consumed by external contracts as a price feed.
 - **Slippage Protection**: Buyers pass `maxPrice` to ensure execution does not exceed their slippage threshold.
 - **Batch Auctions**: Sellers can call `createBatchAuctions` to bundle multiple quarters into a single transaction.
 - **Zero Protocol Fees (MVP)**: This MVP implementation features zero protocol fees, providing 100% of proceeds directly to the seller.
@@ -133,6 +133,7 @@ The **Prism Dividend Dutch Auction** provides continuous on-chain price discover
 > In this testnet deployment:
 > - Dividend announcements and execution rely on `MockDividendSource` and a permissionless `fundEpoch` function with a **30-day Funding Grace Period** (`FUNDING_GRACE = 30 days`).
 > - If an epoch passes its `exDate` without being funded, principal redemptions and recombines are blocked for up to 30 days. This creates an economic incentive on testnet for principal holders or issuers to pay the declared dividend to coupon holders or wait out the grace period.
+> - Once the 30-day grace period lapses without funding, the epoch is flagged as defaulted (emitting `FundingDefaulted(epochId)`), and principal redemptions safely unblock.
 > - **This is a testnet incentive mechanism, not a replacement for real institutional dividend custody.**
 
 ### Production Dividend Sourcing Architecture
@@ -148,20 +149,27 @@ In a production deployment on Monad, dividend distribution cannot rely on volunt
 
 ## 6. Stateful Invariant Testing
 
-Prism runs stateful invariant testing via Foundry (`test/Invariants.t.sol`), configured with `runs = 256` and `depth = 50` (12,800 random actor interactions per run) across 3 distinct actors performing random deposits, recombines, funding, claims, auctions, buys, and time warps:
+Prism runs stateful invariant testing via Foundry (`test/Invariants.t.sol`), configured with `runs = 256` and `depth = 50` (12,800 random actor interactions per run) across 3 distinct actors performing random deposits, recombines, funding, claims, auctions, buys, time warps, and owner administration (declare, lock, seal, demo mode, pause/unpause):
 
 1. **Collateral Conservation**:
-   $$\text{MockStock.balanceOf}(\text{Vault}) \equiv \text{PrincipalToken.totalSupply}()$$
-   (The vault holds 1:1 underlying collateral for every outstanding Principal Token across all redemption-free sequences).
-2. **Coupon Supply Bound**:
-   $$\forall e \in \text{Epochs}, \quad \text{EpochCoupon.totalSupply}(e) + \text{auctionEscrow}(e) \le \text{PrincipalToken.totalSupply}()$$
-   (Every outstanding Principal Token has at most 1 matching Epoch Coupon across circulating and escrowed balances).
+   $$\text{MockStock.balanceOf}(\text{Vault}) \ge \text{PrincipalToken.totalSupply}()$$
+   (The vault holds at least 1:1 underlying collateral for every outstanding Principal Token across all execution sequences).
+2. **Coupon Supply Exact Equality (Live Epochs)**:
+   $$\forall e \in \text{Epochs}_{\text{live}}, \quad \text{EpochCoupon.totalSupply}(e) + \text{auctionEscrow}(e) \equiv \text{PrincipalToken.totalSupply}()$$
+   (Every outstanding Principal Token has exactly 1 matching Epoch Coupon across circulating and escrowed balances for live distribution epochs).
 3. **Dividend Solvency Invariant**:
    $$\text{MockUSDC.balanceOf}(\text{Vault}) \ge \sum \text{unclaimedFundedPayouts}$$
    (The vault's USDC reserves are guaranteed to cover all claimable funded dividend liabilities).
 4. **Auction Escrow Accounting**:
    $$\text{EpochCoupon.balanceOf}(\text{Auction}, e) \equiv \sum_{\text{active}} \text{remainingAmount}(e)$$
    (Coupons escrowed in the auction contract exactly match the sum of active auction order volumes).
+5. **Dividend Claim Cap**:
+   $$\forall e, \quad \text{totalClaimedUSDC}(e) \le \text{totalFundedUSDC}(e)$$
+   (Total USDC claimed for any epoch can never exceed the amount funded).
+6. **Locked Dividend Immutability**:
+   A locked dividend corporate action event can never be altered or re-declared.
+7. **Stock Redemption Bound**:
+   No address can redeem more underlying stock collateral than its minted or held Principal Token balance.
 
 ---
 
@@ -229,7 +237,7 @@ The official prospectus landing page is located in [`web/`](web).
 - **Editorial Prospectus**: Rejects crypto-startup cliches (no blue, no purple neon, no gradients, no glassmorphism).
 - **Core Motif**: The split-line hairline mark dividing incoming shares into Principal (top/ink) and Coupon (bottom/vermilion).
 - **Typography**: Self-hosted `Newsreader` (display serif), `Hanken Grotesk` (body sans), and `IBM Plex Mono` (tabular numbers).
-- **Performance**: Sub-60KB gzip total bundle weight, zero layout shift, responsive down to 360px.
+- **Performance**: Lean, fast-loading bundle (~178KB total gzip weight across JS and CSS), zero layout shift, responsive down to 360px.
 - **Accessibility**: WCAG AAA/AA color contrast, keyboard skip link (`#main-content`), 44px minimum touch targets, and full `prefers-reduced-motion` compliance.
 
 Detailed design system tokens and component specs are documented in [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
@@ -320,19 +328,25 @@ node web/scripts/e2e-local.mjs
 > [!CAUTION]
 > **Experimental Software — Unaudited**
 >
-> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (46 Foundry suites, 256 runs × 50 depths), but **have not undergone an independent third-party security audit**. Do not deposit real-world production capital without an institutional audit.
+> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (73 Foundry tests across 6 suites, 256 runs × 50 depths = 12,800 stateful fuzz calls per run; 100% line coverage on Vault, 99.09% on Auction), but **have not undergone an independent third-party commercial security audit**. Do not deposit real-world production capital without an institutional audit.
 
-1. **Single-Owner Protocol Trust**:
-   - `PrismVault` and `MockDividendSource` inherit OpenZeppelin's `Ownable2Step`.
-   - The contract owner can seal the epoch schedule, permanently disable demo mode, and declare corporate actions.
-   - *Production mitigation*: In any production deployment, owner keys must be transferred to a decentralized governance timelock or multi-signature threshold scheme (e.g. Safe with 3-of-5 signers).
-2. **Mock Dividend Source**:
+1. **Single-Owner Protocol Trust & Governance**:
+   - `PrismVault`, `MockDividendSource`, and `PrismAuction` inherit OpenZeppelin's `Ownable2Step`.
+   - The contract owner can seal the epoch schedule, permanently disable demo mode, declare corporate actions, and assign guardian roles.
+   - *Production mitigation*: In production, owner keys must be transferred to a decentralized governance timelock or multi-signature threshold scheme (e.g. Safe 3-of-5 signers). See [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md).
+2. **Pausability Without Trapping Funds**:
+   - Protocol guardian can pause new deposits and auction buying/creation during market disruptions.
+   - **User capital exits (`recombine`, `redeemPrincipal`, `claim`, `cancel`, `fundEpoch`) are strictly non-pausable**.
+3. **Sybil Wash Trading & Informational VWAP**:
+   - While direct `buyer == seller` trades revert with `SelfTrade()`, off-chain or multi-address sybil wash trading cannot be prevented purely on-chain.
+   - The Volume-Weighted Average Price (VWAP) is **strictly informational** and must not be used as an on-chain oracle.
+4. **Mock Dividend Source & Funding Defaults**:
    - On testnet, dividends are declared via `MockDividendSource` and funded permissionlessly.
-   - *Production mitigation*: Real production tokenized equity distributions require an institutional push model (issuer/custodian automated deposit) or decentralized DTCC oracle feeds (Chainlink Functions, Pyth).
-3. **Unsupported Collateral Types**:
-   - `PrismVault.deposit` enforces strict `balanceAfter - balanceBefore == amount` transfer checks (`UnsupportedCollateral()`).
-   - Tokens with fee-on-transfer, rebasing balances (e.g. stETH), or internal share balance multipliers are strictly unsupported as raw collateral.
-   - *Production mitigation*: Rebasing or non-standard equity tokens must be wrapped into standardized ERC-4626 or dedicated vault collateral adapters prior to depositing.
-4. **Funding Grace Incentive Window**:
-   - Past-exDate unfunded epochs enforce a 30-day grace period (`FUNDING_GRACE = 30 days`) during which principal exits and recombinations are blocked. This serves as a testnet incentive mechanism rather than a replacement for legal dividend custody.
+   - If an epoch is unfunded after its ex-date and passes the 30-day grace period, it transitions to `defaulted` and emits `FundingDefaulted(epochId)`. Unfunded defaults release principal tokens for redemption while coupons yield zero USDC.
+5. **Collateral Shortfall & Unsupported Tokens**:
+   - The vault checks `mockStock.balanceOf(vault) >= principalToken.totalSupply()` on all entries and exits, reverting with `CollateralShortfall()` if any negative rebase occurs.
+   - Rebasing tokens, fee-on-transfer tokens, and balance multipliers are strictly unsupported.
+6. **Detailed Threat Model & Static Analysis**:
+   - For complete threat actor analysis, see [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+   - For Slither static analysis findings and triage, see [`docs/STATIC_ANALYSIS.md`](docs/STATIC_ANALYSIS.md).
 

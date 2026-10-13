@@ -9,6 +9,7 @@ import { MarketScreen } from './components/MarketScreen';
 import { DividendCurveScreen } from './components/DividendCurveScreen';
 import { PortfolioScreen } from './components/PortfolioScreen';
 import { RiskPanel } from './components/RiskPanel';
+import { ActivityFeed } from './components/ActivityFeed';
 import { DemoDrawer } from './components/DemoDrawer';
 import { TxToast } from './components/TxToast';
 import './PrismApp.css';
@@ -47,6 +48,7 @@ const AppContent: React.FC = () => {
             </>
           )}
 
+          <ActivityFeed />
           <RiskPanel />
         </div>
       </main>

@@ -60,6 +60,7 @@ export interface ContractAddresses {
   EpochCoupon: Address;
   PrismAuction: Address;
   MockReferencePrice?: Address;
+  PrismFactory?: Address;
 }
 
 export function getActiveChainId(): number {
@@ -99,6 +100,9 @@ export const DEPLOYED_ADDRESSES: ContractAddresses = {
   },
   get MockReferencePrice() {
     return getActiveAddresses().MockReferencePrice ?? '0x0000000000000000000000000000000000000000';
+  },
+  get PrismFactory() {
+    return getActiveAddresses().PrismFactory ?? '0x0000000000000000000000000000000000000000';
   },
 };
 

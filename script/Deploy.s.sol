@@ -11,6 +11,7 @@ import {IDividendSource} from "../contracts/IDividendSource.sol";
 import {PrismVault} from "../contracts/PrismVault.sol";
 import {PrismAuction} from "../contracts/PrismAuction.sol";
 import {EpochCoupon} from "../contracts/EpochCoupon.sol";
+import {MockReferencePrice} from "../contracts/MockReferencePrice.sol";
 
 /**
  * @title DeployScript
@@ -38,10 +39,12 @@ contract DeployScript is Script {
         MockStock stock = new MockStock();
         MockUSDC usdc = new MockUSDC();
         MockDividendSource dividendSource = new MockDividendSource();
+        MockReferencePrice referencePrice = new MockReferencePrice(100_000_000); // $100.00 default stock price
 
         console.log("MockStock deployed at:          ", address(stock));
         console.log("MockUSDC deployed at:           ", address(usdc));
         console.log("DividendSource deployed at:     ", address(dividendSource));
+        console.log("ReferencePrice deployed at:     ", address(referencePrice));
 
         // 2. Deploy PrismVault
         PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode);
@@ -106,6 +109,7 @@ contract DeployScript is Script {
         vm.serializeAddress(contractsObj, "PrismVault", address(vault));
         vm.serializeAddress(contractsObj, "PrincipalToken", ptAddress);
         vm.serializeAddress(contractsObj, "EpochCoupon", ecAddress);
+        vm.serializeAddress(contractsObj, "MockReferencePrice", address(referencePrice));
         string memory contractsJson = vm.serializeAddress(contractsObj, "PrismAuction", address(auction));
 
         string memory rootObj = "root";

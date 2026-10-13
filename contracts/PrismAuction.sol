@@ -13,6 +13,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {PrismVault} from "./PrismVault.sol";
 import {IDividendSource} from "./IDividendSource.sol";
+import {IReferencePrice} from "./IReferencePrice.sol";
 
 /**
  * @title PrismAuction
@@ -104,6 +105,8 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
     error AuctionExtendsPastExDate(uint256 auctionEndTime, uint256 exDate);
     error NotGuardian();
     error NotPendingGuardian();
+    error InvalidReferencePrice();
+    error StaleReferencePrice(uint256 updatedAt, uint256 currentTimestamp);
 
     constructor(address epochCoupon_, address mockUSDC_, address prismVault_) Ownable(msg.sender) {
         if (epochCoupon_ == address(0) || mockUSDC_ == address(0) || prismVault_ == address(0)) {
@@ -380,5 +383,29 @@ contract PrismAuction is ERC1155Holder, Ownable2Step, Pausable, ReentrancyGuard 
         epochCoupon.safeTransferFrom(msg.sender, address(this), epochId, amount, "");
 
         emit AuctionCreated(auctionId, msg.sender, epochId, amount, startPrice, floorPrice, duration, block.timestamp);
+    }
+
+    /**
+     * @notice Computes implied quarterly dividend yield in basis points using an on-chain reference stock price.
+     * @dev Yield (bps) = (VWAP * 10,000) / referenceStockPrice.
+     *      Reverts if referencePrice is zero, returns zero price, or is older than 1 day.
+     * @param epochId Target epoch identifier.
+     * @param referencePrice Address of contract implementing IReferencePrice.
+     * @return yieldBps Implied quarterly yield in basis points (100 bps = 1.00%).
+     */
+    function impliedQuarterlyYieldBps(uint256 epochId, address referencePrice)
+        external
+        view
+        returns (uint256 yieldBps)
+    {
+        if (referencePrice == address(0)) revert InvalidReferencePrice();
+        (uint256 refPrice, uint256 updatedAt) = IReferencePrice(referencePrice).price();
+        if (refPrice == 0) revert InvalidReferencePrice();
+        if (block.timestamp > updatedAt + 1 days) {
+            revert StaleReferencePrice(updatedAt, block.timestamp);
+        }
+
+        uint256 currentVwap = vwap(epochId);
+        yieldBps = (currentVwap * 10_000) / refPrice;
     }
 }

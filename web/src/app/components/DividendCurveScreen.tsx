@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { formatUnits } from 'viem';
 import {
   fetchEpochMarketData,
+  fetchReferencePrice,
   formatUsdcPrice,
   formatStock,
 } from '../../chain/contracts';
@@ -19,8 +20,9 @@ interface EpochMarketRow {
 export const DividendCurveScreen: React.FC = () => {
   const { publicClient, vaultData } = useApp();
 
-  // User-editable reference stock price marked ASSUMPTION
+  // On-chain reference price default with user typing override
   const [referencePriceInput, setReferencePriceInput] = useState('100.00');
+  const [hasUserEditedRefPrice, setHasUserEditedRefPrice] = useState(false);
   const [marketRows, setMarketRows] = useState<EpochMarketRow[]>([]);
   const [isLoadingRows, setIsLoadingRows] = useState(true);
 
@@ -30,6 +32,17 @@ export const DividendCurveScreen: React.FC = () => {
     let isCancelled = false;
 
     const loadData = async () => {
+      // 1. Fetch on-chain reference price if user hasn't overridden
+      try {
+        const refData = await fetchReferencePrice(publicClient);
+        if (refData && refData.price > 0n && !hasUserEditedRefPrice && !isCancelled) {
+          const formatted = (Number(refData.price) / 1e6).toFixed(2);
+          setReferencePriceInput(formatted);
+        }
+      } catch {
+        // Fallback to default
+      }
+
       if (!vaultData) return;
       setIsLoadingRows(true);
       const rows: EpochMarketRow[] = [];
@@ -68,7 +81,7 @@ export const DividendCurveScreen: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [publicClient, vaultData]);
+  }, [publicClient, vaultData, hasUserEditedRefPrice]);
 
   const curveData = useMemo(() => {
     return marketRows.map((r) => {
@@ -119,7 +132,10 @@ export const DividendCurveScreen: React.FC = () => {
                 min="0.1"
                 className="prism-input font-mono"
                 value={referencePriceInput}
-                onChange={(e) => setReferencePriceInput(e.target.value)}
+                onChange={(e) => {
+                  setHasUserEditedRefPrice(true);
+                  setReferencePriceInput(e.target.value);
+                }}
               />
             </div>
           </div>

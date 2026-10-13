@@ -32,6 +32,7 @@ import PrincipalTokenAbi from './abi/PrincipalToken.json';
 import MockStockAbi from './abi/MockStock.json';
 import MockUSDCAbi from './abi/MockUSDC.json';
 import MockDividendSourceAbi from './abi/MockDividendSource.json';
+import MockReferencePriceAbi from './abi/MockReferencePrice.json';
 
 export { MONAD_TESTNET_CHAIN_ID, LOCAL_CHAIN_ID, monadTestnetChain };
 export const DEFAULT_RPC_URL = 'http://127.0.0.1:8545';
@@ -58,6 +59,7 @@ export interface ContractAddresses {
   PrincipalToken: Address;
   EpochCoupon: Address;
   PrismAuction: Address;
+  MockReferencePrice?: Address;
 }
 
 export function getActiveChainId(): number {
@@ -94,6 +96,9 @@ export const DEPLOYED_ADDRESSES: ContractAddresses = {
   },
   get PrismAuction() {
     return getActiveAddresses().PrismAuction;
+  },
+  get MockReferencePrice() {
+    return getActiveAddresses().MockReferencePrice ?? '0x0000000000000000000000000000000000000000';
   },
 };
 
@@ -570,6 +575,24 @@ export async function fetchEpochMarketData(publicClient: PublicClient, epochId: 
     lastClearingPrice,
     cumulativeVolume,
   };
+}
+
+export async function fetchReferencePrice(
+  publicClient: PublicClient
+): Promise<{ price: bigint; updatedAt: bigint } | null> {
+  const addr = DEPLOYED_ADDRESSES.MockReferencePrice;
+  if (!addr || addr === '0x0000000000000000000000000000000000000000') return null;
+  try {
+    const contract = getContract({
+      address: addr,
+      abi: MockReferencePriceAbi,
+      client: publicClient,
+    });
+    const [price, updatedAt] = (await contract.read.price()) as [bigint, bigint];
+    return { price, updatedAt };
+  } catch {
+    return null;
+  }
 }
 
 // -----------------------------------------------------------------------------

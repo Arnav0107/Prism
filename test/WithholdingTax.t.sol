@@ -27,7 +27,7 @@ contract WithholdingTaxTest is Test {
         dividendSource = new MockDividendSource();
 
         // demoMode = true for instant funding
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 

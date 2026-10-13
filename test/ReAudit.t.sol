@@ -49,7 +49,7 @@ contract ReAuditRegressionTest is Test, IERC1155Receiver {
         dividendSource = new MockDividendSource();
 
         vm.startPrank(owner);
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 
@@ -168,7 +168,7 @@ contract ReAuditRegressionTest is Test, IERC1155Receiver {
     // =========================================================================
     function test_regression_R3_sealZeroEpochsReverts() public {
         vm.prank(owner);
-        PrismVault freshVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false);
+        PrismVault freshVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false, false);
 
         assertEq(freshVault.epochCount(), 0, "Fresh vault has 0 epochs");
 

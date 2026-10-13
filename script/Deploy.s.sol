@@ -47,7 +47,7 @@ contract DeployScript is Script {
         console.log("ReferencePrice deployed at:     ", address(referencePrice));
 
         // 2. Deploy PrismVault
-        PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode);
+        PrismVault vault = new PrismVault(address(stock), address(usdc), address(dividendSource), demoMode, false);
 
         address ptAddress = address(vault.principalToken());
         address ecAddress = address(vault.epochCoupon());

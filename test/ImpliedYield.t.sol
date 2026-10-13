@@ -31,7 +31,7 @@ contract ImpliedYieldTest is Test {
         // Stock reference price: $100.00 = 100_000_000 (6 decimals)
         referencePrice = new MockReferencePrice(100_000_000);
 
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         auction = new PrismAuction(address(vault.epochCoupon()), address(usdc), address(vault));
         coupon = vault.epochCoupon();
 

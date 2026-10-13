@@ -46,7 +46,7 @@ contract CoverageExpansionTest is Test, IERC1155Receiver {
 
         vm.startPrank(owner);
         dividendSource = new MockDividendSource();
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
 
@@ -113,13 +113,13 @@ contract CoverageExpansionTest is Test, IERC1155Receiver {
 
     function test_vault_constructor_zeroAddressReverts() public {
         vm.expectRevert(PrismVault.ZeroAddress.selector);
-        new PrismVault(address(0), address(usdc), address(dividendSource), false);
+        new PrismVault(address(0), address(usdc), address(dividendSource), false, false);
 
         vm.expectRevert(PrismVault.ZeroAddress.selector);
-        new PrismVault(address(stock), address(0), address(dividendSource), false);
+        new PrismVault(address(stock), address(0), address(dividendSource), false, false);
 
         vm.expectRevert(PrismVault.ZeroAddress.selector);
-        new PrismVault(address(stock), address(usdc), address(0), false);
+        new PrismVault(address(stock), address(usdc), address(0), false, false);
     }
 
     function test_vault_guardian_branches() public {
@@ -168,7 +168,7 @@ contract CoverageExpansionTest is Test, IERC1155Receiver {
         vault.deposit(0);
 
         // Deposit on unsealed vault with 0 epochs
-        PrismVault emptyVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false);
+        PrismVault emptyVault = new PrismVault(address(stock), address(usdc), address(dividendSource), false, false);
         vm.prank(alice);
         vm.expectRevert(PrismVault.NoEpochs.selector);
         emptyVault.deposit(10e18);

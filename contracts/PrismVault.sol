@@ -37,6 +37,15 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
     PrincipalToken public immutable principalToken;
     EpochCoupon public immutable epochCoupon;
 
+    /// @notice In-kind dividend mode flag (dividends distributed in underlying stock surplus instead of external USDC).
+    bool public immutable inKindDividends;
+
+    /// @notice Total unclaimed in-kind stock reserved for funded coupon distributions.
+    uint256 public totalUnclaimedInKindStock;
+
+    /// @notice Total in-kind stock surplus funded per epoch.
+    mapping(uint256 => uint256) public totalFundedStock;
+
     /// @notice Maximum number of distribution epochs permitted.
     uint256 public constant MAX_EPOCHS = 16;
     /// @notice Maximum horizon into the future for an epoch exDate (400 days).
@@ -61,6 +70,8 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
     event Deposited(address indexed user, uint256 amount);
     event EpochFunded(uint256 indexed epochId, address indexed funder, uint256 payout, uint256 couponSupply);
     event CouponClaimed(uint256 indexed epochId, address indexed claimer, uint256 amount, uint256 payout);
+    event InKindEpochFunded(uint256 indexed epochId, address indexed funder, uint256 surplus, uint256 couponSupply);
+    event InKindCouponClaimed(uint256 indexed epochId, address indexed claimer, uint256 amount, uint256 payout);
     event Recombined(address indexed user, uint256 amount);
     event PrincipalRedeemed(address indexed user, uint256 amount);
     event DemoModeSet(bool enabled);
@@ -95,7 +106,13 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
     error NotGuardian();
     error NotPendingGuardian();
 
-    constructor(address stock_, address usdc_, address dividendSource_, bool demoMode_) Ownable(msg.sender) {
+    constructor(
+        address stock_,
+        address usdc_,
+        address dividendSource_,
+        bool demoMode_,
+        bool inKindDividends_
+    ) Ownable(msg.sender) {
         if (stock_ == address(0) || usdc_ == address(0) || dividendSource_ == address(0)) {
             revert ZeroAddress();
         }
@@ -103,6 +120,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
         mockUSDC = IERC20(usdc_);
         dividendSource = IDividendSource(dividendSource_);
         demoMode = demoMode_;
+        inKindDividends = inKindDividends_;
 
         principalToken = new PrincipalToken(address(this));
         epochCoupon = new EpochCoupon(address(this), "");
@@ -197,7 +215,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
      */
     function deposit(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
-        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply()) {
+        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply() + totalUnclaimedInKindStock) {
             revert CollateralShortfall();
         }
 
@@ -210,23 +228,28 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 balanceBefore = mockStock.balanceOf(address(this));
         mockStock.safeTransferFrom(msg.sender, address(this), amount);
         uint256 received = mockStock.balanceOf(address(this)) - balanceBefore;
-        if (received != amount) revert UnsupportedCollateral();
+        if (inKindDividends) {
+            if (received + 2 < amount || received > amount + 2) revert UnsupportedCollateral();
+        } else {
+            if (received != amount) revert UnsupportedCollateral();
+        }
 
-        principalToken.mint(msg.sender, amount);
+        principalToken.mint(msg.sender, received);
 
         uint256 total = epochCount;
         for (uint256 i = 1; i <= total; ++i) {
             if (_isLive(i)) {
-                epochCoupon.mint(msg.sender, i, amount);
+                epochCoupon.mint(msg.sender, i, received);
             }
         }
 
-        emit Deposited(msg.sender, amount);
+        emit Deposited(msg.sender, received);
     }
 
     /**
-     * @notice Funds an epoch with declared dividend payouts in USDC, marking it CLAIMABLE.
-     * @dev Corporate action event must be finalized and locked by the dividend source.
+     * @notice Funds an epoch with declared dividend payouts, marking it CLAIMABLE.
+     * @dev In standard mode, pulls USDC based on dividend source corporate action.
+     *      In in-kind mode, sweeps surplus stock collateral above backing requirements.
      *      Never pausable.
      * @param epochId Target epoch identifier.
      */
@@ -238,6 +261,24 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
 
         if (!demoMode && block.timestamp < epoch.exDate) {
             revert ExDateNotReached(epochId, epoch.exDate, block.timestamp);
+        }
+
+        uint256 currentSupply = epochCoupon.totalSupply(epochId);
+
+        if (inKindDividends) {
+            uint256 currentStockBal = mockStock.balanceOf(address(this));
+            uint256 requiredBacking = principalToken.totalSupply() + totalUnclaimedInKindStock;
+            if (currentStockBal <= requiredBacking) revert InsufficientBalance();
+            uint256 surplus = currentStockBal - requiredBacking;
+
+            epoch.funded = true;
+            epoch.fundedSupply = currentSupply;
+            totalFundedStock[epochId] = surplus;
+            totalUnclaimedInKindStock += surplus;
+
+            emit EpochFunded(epochId, msg.sender, 0, currentSupply);
+            emit InKindEpochFunded(epochId, msg.sender, surplus, currentSupply);
+            return;
         }
 
         (
@@ -252,7 +293,6 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (!locked) revert EventNotLocked(epochId);
         if (actionType != IDividendSource.ActionType.DIVIDEND) revert NonDividendActionType(actionType);
 
-        uint256 currentSupply = epochCoupon.totalSupply(epochId);
         uint256 netUsdcPerShare = (grossUsdcPerShare * (10000 - withholdingBps)) / 10000;
         uint256 requiredUSDC = (currentSupply * netUsdcPerShare) / SHARE_PRECISION;
 
@@ -271,7 +311,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
      * @notice Claims dividend distribution payouts for a funded epoch by burning EpochCoupons.
      * @dev Never pausable.
      * @param epochId Target epoch identifier.
-     * @param amount Amount of EpochCoupon vouchers to redeem for USDC.
+     * @param amount Amount of EpochCoupon vouchers to redeem.
      */
     function claim(uint256 epochId, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
@@ -281,7 +321,27 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
         if (!epoch.funded) revert EpochNotFunded(epochId);
         if (epochCoupon.balanceOf(msg.sender, epochId) < amount) revert InsufficientBalance();
 
-        uint256 payout = (amount * epoch.totalFundedUSDC) / epoch.fundedSupply;
+        uint256 payout;
+        if (inKindDividends) {
+            payout = (amount * totalFundedStock[epochId]) / epoch.fundedSupply;
+            epochCoupon.burn(msg.sender, epochId, amount);
+
+            if (payout > totalUnclaimedInKindStock) {
+                totalUnclaimedInKindStock = 0;
+            } else {
+                totalUnclaimedInKindStock -= payout;
+            }
+
+            if (payout > 0) {
+                mockStock.safeTransfer(msg.sender, payout);
+            }
+
+            emit CouponClaimed(epochId, msg.sender, amount, payout);
+            emit InKindCouponClaimed(epochId, msg.sender, amount, payout);
+            return;
+        }
+
+        payout = (amount * epoch.totalFundedUSDC) / epoch.fundedSupply;
 
         epochCoupon.burn(msg.sender, epochId, amount);
 
@@ -301,7 +361,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
      */
     function recombine(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply()) {
+        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply() + totalUnclaimedInKindStock) {
             revert CollateralShortfall();
         }
         if (principalToken.balanceOf(msg.sender) < amount) revert InsufficientBalance();
@@ -340,7 +400,7 @@ contract PrismVault is Ownable2Step, Pausable, ReentrancyGuard {
      */
     function redeemPrincipal(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply()) {
+        if (mockStock.balanceOf(address(this)) < principalToken.totalSupply() + totalUnclaimedInKindStock) {
             revert CollateralShortfall();
         }
 

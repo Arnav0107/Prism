@@ -436,7 +436,7 @@ contract InvariantsTest is Test, IERC1155Receiver {
 
         vm.startPrank(owner);
         dividendSource = new MockDividendSource();
-        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true);
+        vault = new PrismVault(address(stock), address(usdc), address(dividendSource), true, false);
         principal = vault.principalToken();
         coupon = vault.epochCoupon();
         auction = new PrismAuction(address(coupon), address(usdc), address(vault));

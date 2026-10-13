@@ -44,6 +44,7 @@ function loadDeployments(chainId: number): Record<string, string> {
       const raw = fs.readFileSync(deploymentFile, 'utf-8');
       const parsed = JSON.parse(raw);
       if (parsed.contracts) return parsed.contracts;
+      return parsed;
     } catch (err) {
       logger.warn(`Failed reading deployments file at ${deploymentFile}:`, { err });
     }

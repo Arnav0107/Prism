@@ -34,7 +34,16 @@ export interface DeploymentManifest {
   contracts: ContractAddresses;
 }
 
-export const monadDeployments: DeploymentManifest = monadDeploymentsRaw as unknown as DeploymentManifest;
+const rawMonad = monadDeploymentsRaw as any;
+export const monadDeployments: DeploymentManifest = (
+  rawMonad?.contracts
+    ? rawMonad
+    : {
+        chainId: rawMonad?.chainId || 10143,
+        contracts: rawMonad as ContractAddresses,
+      }
+) as DeploymentManifest;
+
 export const localDeployments: DeploymentManifest = localDeploymentsRaw as unknown as DeploymentManifest;
 
 /**

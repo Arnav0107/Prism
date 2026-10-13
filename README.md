@@ -5,12 +5,25 @@
 
 ---
 
-## 1. Overview
+## 1. Overview & Problem Fit
 
-**Prism** introduces a structural financial primitive for tokenized stocks on Monad. Inspired by traditional bond stripping and fixed-income STRIPS, Prism allows holders of tokenized shares (e.g. Backed, Ondo, Dinari, or xStock) to decompose a single equity asset into two tradeable legs:
+**Target User & Core Problem**:
+- **Income-focused investors**: Want recurring cashflow and predictable quarterly dividend yield without exposure to equity market downturns or share price volatility.
+- **Capital growth investors**: Want pure price appreciation and prefer to monetize upcoming quarterly dividend distributions for upfront liquid cash today rather than waiting months for disbursements.
 
-1. **Principal Token (`PPT`)**: An ERC-20 token representing pure price exposure to the underlying stock collateral, redeemable for the underlying stock once all distribution epochs have concluded or recombined.
-2. **Epoch Coupons (`EC`)**: An ERC-1155 multi-token collection (`id = epochId`) representing entitlement to quarterly dividend distributions. Secondary market participants can trade coupons independently to hedge dividend risk or speculate on dividend payouts.
+**Prism** introduces a structural financial primitive for tokenized stocks on Monad. Inspired by traditional bond stripping and fixed-income STRIPS, Prism unbundles tokenized shares into two discrete, tradeable legs:
+
+1. **Principal Token (`PPT`)**: An ERC-20 token representing pure price exposure to the underlying stock collateral, redeemable 1:1 for the underlying shares once distribution epochs conclude or recombined.
+2. **Epoch Coupons (`EC`)**: An ERC-1155 multi-token collection (`id = epochId`) representing entitlement to specific quarterly dividend payouts. Holders can trade coupons on secondary markets to hedge dividend risk or speculate on dividend amounts.
+
+### Strategy Comparison
+
+| Strategy | Capital Exposure | Dividend Exposure | Upfront Cashflow | Asset Decoupling |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sell the Stock** | Forfeited | Forfeited | 100% spot sale | Complete exit from asset |
+| **Hold the Stock** | Retained | Delayed quarterly | Zero upfront | Bundled price + dividend volatility |
+| **Generic Yield Stripping (Pendle-style)** | Continuous yield | Continuous linear APY (no ex-dates) | AMM LP liquidity | Tailored for DeFi lending/staking, not discrete corporate equity actions |
+| **Prism** | **Pure Capital (`PPT`)** | **Discrete Quarters (`EC`)** | **Immediate via Dutch auction** | **Cleanly unbundled into independent risk legs** |
 
 ---
 
@@ -135,6 +148,16 @@ The **Prism Dividend Dutch Auction** provides continuous on-chain price discover
 > - If an epoch passes its `exDate` without being funded, principal redemptions and recombines are blocked for up to 30 days. This creates an economic incentive on testnet for principal holders or issuers to pay the declared dividend to coupon holders or wait out the grace period.
 > - Once the 30-day grace period lapses without funding, the epoch is flagged as defaulted (emitting `FundingDefaulted(epochId)`), and principal redemptions safely unblock.
 > - **This is a testnet incentive mechanism, not a replacement for real institutional dividend custody.**
+
+### How Real Tokenized Stocks Pay Dividends
+Real-world tokenized equities handle corporate distributions through three distinct models:
+- **xStocks**: Distributes dividends via a balance multiplier (rebasing ERC-20), credited net of standard 30% statutory withholding tax.
+- **Ondo**: Operates as a total-return fund where dividend proceeds are reinvested into underlying asset NAV, accreting into token price rather than being distributed as discrete cash payments.
+- **Dinari**: Disburses stablecoin payouts directly to verified KYC'd wallets upon corporate action record dates, deducting a 5% processing fee.
+
+**Prism Protocol Alignment**:
+- Prism's **cash-funded mode** directly models the **Dinari-style** case: declared cash dividends are funded in USDC per share with net-of-withholding tax accounting.
+- Prism's **in-kind capture mode** directly targets the **xStocks-style** case: surplus rebasing stock collateral from corporate actions is captured and distributed in kind to coupon holders.
 
 ### Production Dividend Sourcing Architecture
 In a production deployment on Monad, dividend distribution cannot rely on voluntary principal escrow blocking. Instead, real-world tokenized equities require one of the following production architectures:
@@ -328,7 +351,7 @@ node web/scripts/e2e-local.mjs
 > [!CAUTION]
 > **Experimental Software — Unaudited**
 >
-> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (73 Foundry tests across 6 suites, 256 runs × 50 depths = 12,800 stateful fuzz calls per run; 100% line coverage on Vault, 99.09% on Auction), but **have not undergone an independent third-party commercial security audit**. Do not deposit real-world production capital without an institutional audit.
+> The Prism smart contracts and frontend have undergone extensive hardening, unit testing, and stateful invariant testing (83 Foundry tests across 8 suites, 256 runs × 50 depths = 12,800 stateful fuzz calls per run; 100% line coverage on Vault, 99.09% on Auction), but **have not undergone an independent third-party commercial security audit**. Do not deposit real-world production capital without an institutional audit.
 
 1. **Single-Owner Protocol Trust & Governance**:
    - `PrismVault`, `MockDividendSource`, and `PrismAuction` inherit OpenZeppelin's `Ownable2Step`.
